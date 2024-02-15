@@ -3,3 +3,26 @@ Balanced means that these delimiters are opened and closed in the correct order 
 Parentheses, curly braces, and square brackets have equal priority; there is no one more important than the other.
 Balanced expression: { [ a * ( c + d ) ] - 5 }
 Unbalanced expression: { a * ( c + d ) ] - 5 }
+
+
+private PackageAllocation alloc(List<DeliveryTruck> trucks, DeliveryPackage aPackage) {
+            PackageAllocation packageAllocation = null;
+            for (DeliveryTruck deliveryTruck : deliveryTrucks) {
+                if (
+                    (deliveryTruck.getDistricts().contains(aPackage.district()) && // It's in same district
+                            (deliveryTruck.getCurrentVolume() + aPackage.volume() <= deliveryTruck.getMaxVolume()) && // Has volume cap
+                            (deliveryTruck.getCurrentWeight() + aPackage.weight() <= deliveryTruck.getMaxWeight()) // Has weight cap
+                )) {
+                    packageAllocation = new PackageAllocation(aPackage, deliveryTruck, Status.ALLOCATED);
+                    // Update Truck Load
+                    deliveryTruck.weigth(deliveryTruck.getCurrentWeight() - aPackage.weight());
+                    deliveryTruck.volume(deliveryTruck.getCurrentVolume() - aPackage.volume());
+                    
+                    break;
+                }
+            }
+            if (packageAllocation == null) {
+                throw new RuntimeException("Unable to allocate package id: %s. No truck available".formatted(deliveryPackage.id()));
+            }
+	     return packageAllocation;
+}
