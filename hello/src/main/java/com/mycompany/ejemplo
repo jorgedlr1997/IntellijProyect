@@ -26,3 +26,50 @@ private PackageAllocation alloc(List<DeliveryTruck> trucks, DeliveryPackage aPac
             }
 	     return packageAllocation;
 }
+
+
+import java.util.List;
+
+public class PackageAllocation {
+    private DeliveryPackage deliveryPackage;
+    private DeliveryTruck deliveryTruck;
+    private Status status;
+
+    public PackageAllocation(DeliveryPackage deliveryPackage, DeliveryTruck deliveryTruck, Status status) {
+        this.deliveryPackage = deliveryPackage;
+        this.deliveryTruck = deliveryTruck;
+        this.status = status;
+    }
+
+    // Getters y Setters
+}
+
+public class DeliveryPackage {
+    private int id;
+    private int volume;
+    private int weight;
+    private String district;
+
+    // Constructor, Getters y Setters
+}
+
+public class DeliveryTruck {
+    private List<String> districts;
+    private int maxVolume;
+    private int maxWeight;
+    private int currentVolume;
+    private int currentWeight;
+
+    // Constructor, Getters y Setters
+
+    public void updateLoad(int weight, int volume) {
+        currentWeight -= weight;
+        currentVolume -= volume;
+    }
+}
+
+public enum Status {
+    ALLOCATED,
+    // Otros estados si los hubiera
+}
+
