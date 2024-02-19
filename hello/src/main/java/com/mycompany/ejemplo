@@ -73,3 +73,16 @@ public enum Status {
     // Otros estados si los hubiera
 }
 
+
+Escribir un programa que mantenga el puntaje de un juego de tenis para dos jugadores. El programa debe recibir como entrada los nombres de los jugadores y debe permitir registrar los puntos que cada jugador gana en cada jugada del juego.
+
+Las reglas del juego de tenis son las siguientes:
+
+El juego comienza con un puntaje de 0-0.
+Los puntos se registran como 15, 30 y 40.
+Si ambos jugadores tienen un puntaje de 40, se llama "deuce".
+A partir del "deuce", el jugador que gane la siguiente jugada obtiene la "ventaja".
+Si el jugador sin ventaja gana la siguiente jugada, el puntaje vuelve a estar en "deuce".
+Si el jugador con ventaja gana la siguiente jugada, gana un juego (game).
+El siguiente juego comienza, hasta que un jugador llega a ganar 6 juegos.
+Si los dos jugadores llegan a 5 juegos, entonces el partido se juega a 7 juegos.
