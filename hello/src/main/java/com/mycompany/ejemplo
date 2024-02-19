@@ -92,3 +92,90 @@ El programa debe implementarse utilizando la técnica de TDD.
 El programa debe respetar los conocimientos de código limpio.
 Siempre recordar que debemos hacer nuestra estructura de clases y objetos para que sea posible usar por otros devs
 No es necesario implementar una interfaz gráfica de usuario, se puede utilizar la consola de comandos para mostrar el puntaje y recibir las jugadas de los jugadores.
+
+
+package org.example.model;
+
+import java.util.Scanner;
+
+public class TenisMatch {
+
+    private static final int JUEGOS_GANAR_PARTIDO = 2;
+    private static final String[] TENIS_POINTS = {"0", "15", "30", "40"};
+    private static final int PUNTOS_DEUCE = 4;
+    private Player player1;
+    private Player player2;
+
+    public TenisMatch(Player player1, Player player2) {
+        this.player1 = player1;
+        this.player2 = player2;
+    }
+
+    public void jugar() {
+        while(player1.getTotalSet()<2 && player2.getTotalSet()<2){
+            jugarJuego();
+        }
+        System.out.println("El jugador ha ganado el partido");
+    }
+
+    private void jugarJuego() {
+        while (!player1.haGanadoJuego() && !player2.haGanadoJuego()) {
+            jugarPunto();
+        }
+        if (player1.haGanadoJuego()) {
+            player1.aumentarJuegosGanados();
+            if (player1.getWinGames()>5) {
+                if (player1.getTotalSet()==0) {
+                    System.out.println("El jugador ha ganado un set");
+                    player1.setTotalSet(1);
+                    player1.setWinGames(0);
+                    player1.setTotalPoints(0);
+                    player2.setTotalPoints(0);
+
+                }else{
+                    System.out.println("El jugador ha ganado el último set");
+                    player1.setTotalSet(2);
+                    player1.setWinGames(0);
+                    player1.setTotalPoints(0);
+                    player2.setTotalPoints(0);
+                }
+
+            }else{
+                System.out.println("Juego para "+player1.getNombre()+"-"+player1.getWinGames());
+                player1.setTotalPoints(0);
+                player2.setTotalPoints(0);
+            }
+
+        } else {
+            player2.aumentarJuegosGanados();
+            System.out.println("Juego para "+player1.getNombre());
+        }
+
+    }
+
+    private void jugarPunto() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Punto para " + player1.getNombre() + " (1) o " + player2.getNombre() + " (2): ");
+        int option = scanner.nextInt();
+
+        if (option == 1) {
+            player1.aumentarPuntaje();
+        } else if (option == 2) {
+            player2.aumentarPuntaje();
+        }
+
+        if (estaEnDeuce() && !hayVentaja()) {
+            while (Math.abs(player1.getTotalPoints() - player2.getTotalPoints()) < 2) {
+                jugarPunto();
+            }
+        }
+
+    }
+    private boolean hayVentaja() {
+        return Math.abs(player1.getTotalPoints() - player2.getTotalPoints()) == 1;
+    }
+    private boolean estaEnDeuce() {
+        return player1.getTotalPoints() == PUNTOS_DEUCE && player2.getTotalPoints() == PUNTOS_DEUCE;
+    }
+
+}
