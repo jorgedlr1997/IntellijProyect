@@ -86,3 +86,9 @@ Si el jugador sin ventaja gana la siguiente jugada, el puntaje vuelve a estar en
 Si el jugador con ventaja gana la siguiente jugada, gana un juego (game).
 El siguiente juego comienza, hasta que un jugador llega a ganar 6 juegos.
 Si los dos jugadores llegan a 5 juegos, entonces el partido se juega a 7 juegos.
+Restricciones:
+
+El programa debe implementarse utilizando la técnica de TDD.
+El programa debe respetar los conocimientos de código limpio.
+Siempre recordar que debemos hacer nuestra estructura de clases y objetos para que sea posible usar por otros devs
+No es necesario implementar una interfaz gráfica de usuario, se puede utilizar la consola de comandos para mostrar el puntaje y recibir las jugadas de los jugadores.
