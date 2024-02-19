@@ -222,3 +222,60 @@ private void playPoint() {
         }
 
     }
+
+
+
+
+
+private void playPoint() {
+    while (!player1.hasWonGame() && !player2.hasWonGame()) {
+        makeMove();
+    }
+
+    Player gameWinner = determineGameWinner();
+
+    increaseGamesWon(gameWinner);
+
+    if (gameWinner.getWinGames() > 5) {
+        if (gameWinner.getTotalSets() == 0) {
+            System.out.println("Player " + gameWinner.getName() + " has won a set");
+            gameWinner.setTotalSets(1);
+        } else {
+            System.out.println("Player " + gameWinner.getName() + " has won the last set");
+            gameWinner.setTotalSets(2);
+        }
+        resetPlayerStats();
+    } else {
+        displayGameMessage(gameWinner);
+        resetPoints();
+    }
+}
+
+private Player determineGameWinner() {
+    return (player1.hasWonGame()) ? player1 : player2;
+}
+
+private void increaseGamesWon(Player gameWinner) {
+    gameWinner.incrementGamesWon();
+}
+
+// Método en la clase Player
+public void incrementGamesWon() {
+    this.winGames++;
+}
+
+private void resetPlayerStats() {
+    player1.setWinGames(0);
+    player1.setTotalPoints(0);
+    player2.setWinGames(0);
+    player2.setTotalPoints(0);
+}
+
+private void displayGameMessage(Player gameWinner) {
+    System.out.println("Game for " + gameWinner.getName() + " - " + gameWinner.getWinGames());
+}
+
+private void resetPoints() {
+    player1.setTotalPoints(0);
+    player2.setTotalPoints(0);
+}
