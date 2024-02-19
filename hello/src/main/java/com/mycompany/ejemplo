@@ -178,4 +178,47 @@ public class TenisMatch {
         return player1.getTotalPoints() == PUNTOS_DEUCE && player2.getTotalPoints() == PUNTOS_DEUCE;
     }
 
-}
+}ç
+
+
+
+
+
+private void playPoint() {
+        while (!player1.haGanadoJuego() && !player2.haGanadoJuego()) {
+            jugarPunto();
+        }
+
+
+
+
+        if (player1.haGanadoJuego()) {
+            player1.aumentarJuegosGanados();
+            if (player1.getWinGames()>5) {
+                if (player1.getTotalSet()==0) {
+                    System.out.println("El jugador ha ganado un set");
+                    player1.setTotalSet(1);
+                    player1.setWinGames(0);
+                    player1.setTotalPoints(0);
+                    player2.setTotalPoints(0);
+
+                }else{
+                    System.out.println("El jugador ha ganado el último set");
+                    player1.setTotalSet(2);
+                    player1.setWinGames(0);
+                    player1.setTotalPoints(0);
+                    player2.setTotalPoints(0);
+                }
+
+            }else{
+                System.out.println("Juego para "+player1.getNombre()+"-"+player1.getWinGames());
+                player1.setTotalPoints(0);
+                player2.setTotalPoints(0);
+            }
+
+        } else {
+            player2.aumentarJuegosGanados();
+            System.out.println("Juego para "+player1.getNombre());
+        }
+
+    }
