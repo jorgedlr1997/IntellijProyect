@@ -1,281 +1,243 @@
-Develop a program that checks whether the parentheses, curly braces, and square brackets in an expression are balanced.
-Balanced means that these delimiters are opened and closed in the correct order and manner.
-Parentheses, curly braces, and square brackets have equal priority; there is no one more important than the other.
-Balanced expression: { [ a * ( c + d ) ] - 5 }
-Unbalanced expression: { a * ( c + d ) ] - 5 }
+package com.notification.app.decorator;
 
+import com.notification.app.model.Flight;
+import com.notification.app.model.User;
 
-private PackageAllocation alloc(List<DeliveryTruck> trucks, DeliveryPackage aPackage) {
-            PackageAllocation packageAllocation = null;
-            for (DeliveryTruck deliveryTruck : deliveryTrucks) {
-                if (
-                    (deliveryTruck.getDistricts().contains(aPackage.district()) && // It's in same district
-                            (deliveryTruck.getCurrentVolume() + aPackage.volume() <= deliveryTruck.getMaxVolume()) && // Has volume cap
-                            (deliveryTruck.getCurrentWeight() + aPackage.weight() <= deliveryTruck.getMaxWeight()) // Has weight cap
-                )) {
-                    packageAllocation = new PackageAllocation(aPackage, deliveryTruck, Status.ALLOCATED);
-                    // Update Truck Load
-                    deliveryTruck.weigth(deliveryTruck.getCurrentWeight() - aPackage.weight());
-                    deliveryTruck.volume(deliveryTruck.getCurrentVolume() - aPackage.volume());
-                    
-                    break;
-                }
-            }
-            if (packageAllocation == null) {
-                throw new RuntimeException("Unable to allocate package id: %s. No truck available".formatted(deliveryPackage.id()));
-            }
-	     return packageAllocation;
+public interface Notificator {
+    void send(User user, Flight flight);
 }
 
+import com.notification.app.model.Flight;
+import com.notification.app.model.User;
 
-import java.util.List;
+import static com.notification.app.formatter.FormatterPrint.printNotification;
 
-public class PackageAllocation {
-    private DeliveryPackage deliveryPackage;
-    private DeliveryTruck deliveryTruck;
-    private Status status;
+public class EmailMessageBase implements Notificator {
+    private static final String EMAIL_MESSAGE= "Message received by email";
 
-    public PackageAllocation(DeliveryPackage deliveryPackage, DeliveryTruck deliveryTruck, Status status) {
-        this.deliveryPackage = deliveryPackage;
-        this.deliveryTruck = deliveryTruck;
+
+    @Override
+    public void send(User user, Flight flight) {
+        printNotification(flight, user, EMAIL_MESSAGE);
+    }
+}
+
+ackage com.notification.app.decorator;
+
+import com.notification.app.model.Flight;
+import com.notification.app.model.User;
+
+import static com.notification.app.formatter.FormatterPrint.printNotification;
+
+public class SmsMessage extends EmailMessageBase {
+    private static final String SMS_MESSAGE = "Message received by sms";
+
+    public SmsMessage() {
+        super();
+    }
+
+    @Override
+    public void send(User user, Flight flight) {
+        super.send(user, flight);
+        printNotification(flight, user, SMS_MESSAGE);
+    }
+}
+package com.notification.app.decorator;
+
+import com.notification.app.model.Flight;
+import com.notification.app.model.User;
+
+import static com.notification.app.formatter.FormatterPrint.printNotification;
+
+public class WhatsappMessage extends SmsMessage{
+    private static final String WHATSAPP_MESSAGE = "Message received by Whatsapp";
+
+
+    public WhatsappMessage() {
+    }
+
+    @Override
+    public void send(User user, Flight flight) {
+        super.send(user, flight);
+        printNotification(flight, user, WHATSAPP_MESSAGE);
+    }
+}
+import com.notification.app.model.Flight;
+import com.notification.app.model.User;
+
+import static com.notification.app.model.Flight.formatterDateTime;
+
+public class FormatterPrint {
+
+    public static void printNotification(Flight flight, User user , String messageSend) {
+        System.out.println("Estimado "+ user.getName() +" ," +
+                " le informamos que el vuelo "+flight.getFlightNumber()+" de la aerolinea " +flight.getAirlineName()+
+                " desde el aeropuerto de "+flight.getDepartureAirportName() +" con destino a " +
+                flight.getArrivalAirportName() +" programado para el dia  " +flight.getDepartureEstimatedDayOfMonth()+
+                "\na las "+formatterDateTime(flight.getDepartureCurrent())+" ha sufrido un cambio . Los nuevos datos son "+flight.toString()+
+                ". El vuelo ha cambiado " + formatterDateTime(flight.getDepartureEstimated())+". " + messageSend);
+    }
+}
+
+package com.notification.app.model;
+
+import com.notification.app.decorator.Notificator;
+import com.notification.app.formatter.FormatterPrint;
+import com.notification.app.observer.ObservableCustom;
+import com.notification.app.observer.ObserverCustom;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.Getter;
+
+import java.util.logging.Logger;
+
+import static com.notification.app.formatter.FormatterPrint.printNotification;
+
+public class User implements ObserverCustom {
+
+    @Getter
+    String name;
+    Notificator notificator;
+
+    public User(String name, Notificator notificator) {
+        this.name = name;
+        this.notificator = notificator;
+    }
+
+    @Override
+    public void update(ObservableCustom o, Object arg) {
+        Flight flight = (Flight) o;
+        notificator.send(this, flight);
+    }
+}
+package com.notification.app.model;
+
+import com.notification.app.observer.ObservableCustom;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+public class Flight extends ObservableCustom{
+
+    private Airline airline;
+    private String flightNumber;
+    private FlightStatus status;
+    private LocalDateTime departureEstimated;
+    private LocalDateTime arrivalEstimated;
+    private LocalDateTime arrivalCurrent;
+    private LocalDateTime departureCurrent;
+    private Airport departureAirport;
+    private Airport arrivalAirport;
+
+    public Flight(Airline airline, String flightNumber, FlightStatus status, LocalDateTime departureEstimated, LocalDateTime arrivalEstimated, LocalDateTime arrivalCurrent, LocalDateTime departureCurrent, Airport departureAirport, Airport arrivalAirport) {
+        this.airline = airline;
+        this.flightNumber = flightNumber;
+        this.status = status;
+        this.departureEstimated = departureEstimated;
+        this.arrivalEstimated = arrivalEstimated;
+        this.arrivalCurrent = arrivalCurrent;
+        this.departureCurrent = departureCurrent;
+        this.departureAirport = departureAirport;
+        this.arrivalAirport = arrivalAirport;
+    }
+
+    private Flight(){}
+
+    public String getAirlineName (){
+        return airline.getName();
+    }
+
+    public String getDepartureAirportName (){
+        return departureAirport.getName();
+    }
+    public String getArrivalAirportName (){
+        return arrivalAirport.getName();
+    }
+
+    public void setAirline(Airline airline) {
+        this.airline = airline;
+    }
+
+    public void setFlightNumber(String flightNumber) {
+        this.flightNumber = flightNumber;
+    }
+
+    public void setStatus(FlightStatus status) {
         this.status = status;
     }
 
-    // Getters y Setters
-}
-
-public class DeliveryPackage {
-    private int id;
-    private int volume;
-    private int weight;
-    private String district;
-
-    // Constructor, Getters y Setters
-}
-
-public class DeliveryTruck {
-    private List<String> districts;
-    private int maxVolume;
-    private int maxWeight;
-    private int currentVolume;
-    private int currentWeight;
-
-    // Constructor, Getters y Setters
-
-    public void updateLoad(int weight, int volume) {
-        currentWeight -= weight;
-        currentVolume -= volume;
-    }
-}
-
-public enum Status {
-    ALLOCATED,
-    // Otros estados si los hubiera
-}
-
-
-Escribir un programa que mantenga el puntaje de un juego de tenis para dos jugadores. El programa debe recibir como entrada los nombres de los jugadores y debe permitir registrar los puntos que cada jugador gana en cada jugada del juego.
-
-Las reglas del juego de tenis son las siguientes:
-
-El juego comienza con un puntaje de 0-0.
-Los puntos se registran como 15, 30 y 40.
-Si ambos jugadores tienen un puntaje de 40, se llama "deuce".
-A partir del "deuce", el jugador que gane la siguiente jugada obtiene la "ventaja".
-Si el jugador sin ventaja gana la siguiente jugada, el puntaje vuelve a estar en "deuce".
-Si el jugador con ventaja gana la siguiente jugada, gana un juego (game).
-El siguiente juego comienza, hasta que un jugador llega a ganar 6 juegos.
-Si los dos jugadores llegan a 5 juegos, entonces el partido se juega a 7 juegos.
-Restricciones:
-
-El programa debe implementarse utilizando la técnica de TDD.
-El programa debe respetar los conocimientos de código limpio.
-Siempre recordar que debemos hacer nuestra estructura de clases y objetos para que sea posible usar por otros devs
-No es necesario implementar una interfaz gráfica de usuario, se puede utilizar la consola de comandos para mostrar el puntaje y recibir las jugadas de los jugadores.
-
-
-package org.example.model;
-
-import java.util.Scanner;
-
-public class TenisMatch {
-
-    private static final int JUEGOS_GANAR_PARTIDO = 2;
-    private static final String[] TENIS_POINTS = {"0", "15", "30", "40"};
-    private static final int PUNTOS_DEUCE = 4;
-    private Player player1;
-    private Player player2;
-
-    public TenisMatch(Player player1, Player player2) {
-        this.player1 = player1;
-        this.player2 = player2;
+    public void setDepartureEstimated(LocalDateTime departureEstimated) {
+        this.departureEstimated = departureEstimated;
     }
 
-    public void jugar() {
-        while(player1.getTotalSet()<2 && player2.getTotalSet()<2){
-            jugarJuego();
-        }
-        System.out.println("El jugador ha ganado el partido");
+    public void setArrivalEstimated(LocalDateTime arrivalEstimated) {
+        this.arrivalEstimated = arrivalEstimated;
     }
 
-    private void jugarJuego() {
-        while (!player1.haGanadoJuego() && !player2.haGanadoJuego()) {
-            jugarPunto();
-        }
-        if (player1.haGanadoJuego()) {
-            player1.aumentarJuegosGanados();
-            if (player1.getWinGames()>5) {
-                if (player1.getTotalSet()==0) {
-                    System.out.println("El jugador ha ganado un set");
-                    player1.setTotalSet(1);
-                    player1.setWinGames(0);
-                    player1.setTotalPoints(0);
-                    player2.setTotalPoints(0);
-
-                }else{
-                    System.out.println("El jugador ha ganado el último set");
-                    player1.setTotalSet(2);
-                    player1.setWinGames(0);
-                    player1.setTotalPoints(0);
-                    player2.setTotalPoints(0);
-                }
-
-            }else{
-                System.out.println("Juego para "+player1.getNombre()+"-"+player1.getWinGames());
-                player1.setTotalPoints(0);
-                player2.setTotalPoints(0);
-            }
-
-        } else {
-            player2.aumentarJuegosGanados();
-            System.out.println("Juego para "+player1.getNombre());
-        }
-
+    public void setArrivalCurrent(LocalDateTime arrivalCurrent) {
+        this.arrivalCurrent = arrivalCurrent;
     }
 
-    private void jugarPunto() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("Punto para " + player1.getNombre() + " (1) o " + player2.getNombre() + " (2): ");
-        int option = scanner.nextInt();
-
-        if (option == 1) {
-            player1.aumentarPuntaje();
-        } else if (option == 2) {
-            player2.aumentarPuntaje();
-        }
-
-        if (estaEnDeuce() && !hayVentaja()) {
-            while (Math.abs(player1.getTotalPoints() - player2.getTotalPoints()) < 2) {
-                jugarPunto();
-            }
-        }
-
-    }
-    private boolean hayVentaja() {
-        return Math.abs(player1.getTotalPoints() - player2.getTotalPoints()) == 1;
-    }
-    private boolean estaEnDeuce() {
-        return player1.getTotalPoints() == PUNTOS_DEUCE && player2.getTotalPoints() == PUNTOS_DEUCE;
+    public void setDepartureCurrent(LocalDateTime departureCurrent) {
+        this.departureCurrent = departureCurrent;
     }
 
-}ç
-
-
-
-
-
-private void playPoint() {
-        while (!player1.haGanadoJuego() && !player2.haGanadoJuego()) {
-            jugarPunto();
-        }
-
-
-
-
-        if (player1.haGanadoJuego()) {
-            player1.aumentarJuegosGanados();
-            if (player1.getWinGames()>5) {
-                if (player1.getTotalSet()==0) {
-                    System.out.println("El jugador ha ganado un set");
-                    player1.setTotalSet(1);
-                    player1.setWinGames(0);
-                    player1.setTotalPoints(0);
-                    player2.setTotalPoints(0);
-
-                }else{
-                    System.out.println("El jugador ha ganado el último set");
-                    player1.setTotalSet(2);
-                    player1.setWinGames(0);
-                    player1.setTotalPoints(0);
-                    player2.setTotalPoints(0);
-                }
-
-            }else{
-                System.out.println("Juego para "+player1.getNombre()+"-"+player1.getWinGames());
-                player1.setTotalPoints(0);
-                player2.setTotalPoints(0);
-            }
-
-        } else {
-            player2.aumentarJuegosGanados();
-            System.out.println("Juego para "+player1.getNombre());
-        }
-
+    public void setDepartureAirport(Airport departureAirport) {
+        this.departureAirport = departureAirport;
     }
 
-
-
-
-
-private void playPoint() {
-    while (!player1.hasWonGame() && !player2.hasWonGame()) {
-        makeMove();
+    public void setArrivalAirport(Airport arrivalAirport) {
+        this.arrivalAirport = arrivalAirport;
     }
 
-    Player gameWinner = determineGameWinner();
-
-    increaseGamesWon(gameWinner);
-
-    if (gameWinner.getWinGames() > 5) {
-        if (gameWinner.getTotalSets() == 0) {
-            System.out.println("Player " + gameWinner.getName() + " has won a set");
-            gameWinner.setTotalSets(1);
-        } else {
-            System.out.println("Player " + gameWinner.getName() + " has won the last set");
-            gameWinner.setTotalSets(2);
-        }
-        resetPlayerStats();
-    } else {
-        displayGameMessage(gameWinner);
-        resetPoints();
+    public Airline getAirline() {
+        return airline;
     }
-}
 
-private Player determineGameWinner() {
-    return (player1.hasWonGame()) ? player1 : player2;
-}
+    public String getFlightNumber() {
+        return flightNumber;
+    }
 
-private void increaseGamesWon(Player gameWinner) {
-    gameWinner.incrementGamesWon();
-}
+    public FlightStatus getStatus() {
+        return status;
+    }
 
-// Método en la clase Player
-public void incrementGamesWon() {
-    this.winGames++;
-}
+    public LocalDateTime getDepartureEstimated() {
+        return departureEstimated;
+    }
 
-private void resetPlayerStats() {
-    player1.setWinGames(0);
-    player1.setTotalPoints(0);
-    player2.setWinGames(0);
-    player2.setTotalPoints(0);
-}
+    public int getDepartureEstimatedDayOfMonth() {
+        return departureEstimated.getDayOfMonth();
+    }
 
-private void displayGameMessage(Player gameWinner) {
-    System.out.println("Game for " + gameWinner.getName() + " - " + gameWinner.getWinGames());
-}
+    public LocalDateTime getArrivalEstimated() {
+        return arrivalEstimated;
+    }
 
-private void resetPoints() {
-    player1.setTotalPoints(0);
-    player2.setTotalPoints(0);
-}
+    public LocalDateTime getArrivalCurrent() {
+        return arrivalCurrent;
+    }
+
+    public LocalDateTime getDepartureCurrent() {
+        return departureCurrent;
+    }
+
+    public Airport getDepartureAirport() {
+        return departureAirport;
+    }
+
+    public Airport getArrivalAirport() {
+        return arrivalAirport;
+    }
+
+    public void changesDepartureEstimatedFlight(LocalDateTime localDateTime){
+        setDepartureEstimated(localDateTime);
+        this.setChanged();
+        this.notifyObservers();
+    }
+
+    public void changesArrivalEstimatedFlight(LocalDateTime localDateTime){
+        setArrivalEstimated(localDateTime);
+        this.setChanged();
+        notifyObservers();
+    }
