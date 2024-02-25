@@ -241,3 +241,36 @@ public class Flight extends ObservableCustom{
         this.setChanged();
         notifyObservers();
     }
+
+
+ @Override
+    public List<User> findAll() {
+        List<User> userList = new ArrayList<>();
+        try (PreparedStatement preparedStatement = conn.prepareStatement("select * from users");
+        ){
+            ResultSet rs = preparedStatement.executeQuery();
+            while (rs.next()) {
+                Set<Role> roles = new HashSet<>();
+                // roles
+                PreparedStatement psRoles = conn.prepareStatement("select role_name from roles_by_user inner join roles r on roles_by_user.id_role = r.id where id_user = ?");
+                psRoles.setInt(1, rs.getInt("id"));
+                ResultSet rsRoles = psRoles.executeQuery();
+                while (rsRoles.next()) {
+                    roles.add(Role.valueOf(rsRoles.getString("role_name")));
+                }
+                userList.add(User.builder()
+                        .roles(roles)
+                        .username("username")
+                        .name(rs.getString("name"))
+                        .lastName(rs.getString("last_name"))
+                        .id(rs.getInt("id"))
+                        .birthday(rs.getDate("birthday").toLocalDate())
+                        .build());
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+        return userList;
+    }
