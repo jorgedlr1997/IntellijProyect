@@ -408,3 +408,32 @@ public class Project {
 
         assertTrue(result);
     }
+
+
+package com.globant.academy.jirakata.model;
+
+
+import lombok.Getter;
+import lombok.NonNull;
+
+import java.time.LocalDate;
+import java.util.Set;
+
+public class Sprint {
+
+    @Getter
+    private LocalDate initDate;
+    @Getter
+    private LocalDate endDate;
+    private Team team;
+    private String goals;
+    private Set<Task> tasks;
+
+    public Sprint(@NonNull LocalDate initDate,@NonNull LocalDate endDate, Team team,@NonNull String goals, Set<Task> tasks) {
+        this.initDate = initDate;
+        this.endDate = endDate;
+        this.team = team;
+        this.goals = goals;
+        this.tasks = tasks;
+    }
+}
