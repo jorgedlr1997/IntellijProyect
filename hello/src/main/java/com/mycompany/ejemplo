@@ -312,3 +312,99 @@ public class Flight extends ObservableCustom{
         return Optional.empty();
     }
 }
+
+
+
+
+package com.globant.academy.jirakata.functions;
+
+import java.time.LocalDate;
+
+public class DateHelper {
+
+    public static boolean isBetween(LocalDate date, LocalDate from, LocalDate to) {
+        return date.isAfter(from) && date.isBefore(to);
+    }
+
+    public static boolean isContainedInRange(LocalDate begin,
+                                              LocalDate end,
+                                              LocalDate sprintBegin,
+                                              LocalDate sprintEnd) {
+        return begin.isBefore(sprintBegin) && end.isAfter(sprintEnd);
+    }
+}
+
+package com.globant.academy.jirakata.model;
+
+import com.globant.academy.jirakata.functions.DateHelper;
+import lombok.Getter;
+import lombok.NonNull;
+
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+
+public class Project {
+    @Getter
+    private String name;
+    @Getter
+    private String description;
+    private String codeId;
+    @Getter
+    private Set<Sprint> sprints;
+
+    public Project(@NonNull String name, @NonNull String description) {
+        this.name = name;
+        this.description = description;
+    }
+
+    public Project(String name, String description, String codeId, Set<Sprint> sprints) {
+        this.name = name;
+        this.description = description;
+        this.codeId = codeId;
+        this.sprints = new HashSet<>();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Project project = (Project) o;
+        return Objects.equals(codeId, project.codeId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(codeId);
+    }
+
+    public boolean addSprint(Sprint newSprint) {
+        for (Sprint existingSprint : getSprints()) {
+            if (DateHelper.isContainedInRange(newSprint.getInitDate(), newSprint.getEndDate(),
+                    existingSprint.getInitDate(), existingSprint.getEndDate()) ||
+                    DateHelper.isContainedInRange(existingSprint.getInitDate(), existingSprint.getEndDate(),
+                            newSprint.getInitDate(), newSprint.getEndDate())) {
+                return false;
+            }
+        }
+        getSprints().add(newSprint);
+        return true;
+    }
+}
+
+@Test
+    void givenIterationInProjectWithOutOverlappingDates(){
+        LocalDate initDate = LocalDate.of(2024, 2, 28);
+        LocalDate endDate = LocalDate.of(2024, 3, 5);
+        Sprint sprint = new Sprint(initDate, endDate, null, "Description", null);
+        LocalDate initDateActualSprint = LocalDate.of(2024, 2, 15);
+        LocalDate endDateActualSprint = LocalDate.of(2024, 3, 1);
+        Sprint sprintActual = new Sprint(initDateActualSprint, endDateActualSprint, null, "Actual description", null);
+
+        Set<Sprint> sprints = new HashSet<>();
+        sprints.add(sprintActual);
+        Project project = new Project("IberiaApp", "Description", "1234", sprints);
+        boolean result = project.addSprint(sprint);
+
+        assertTrue(result);
+    }
