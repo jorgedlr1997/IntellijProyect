@@ -453,3 +453,8 @@ public boolean addSprint(Sprint newSprint) {
         sprints.add(newSprint);
         return true;
     }
+
+
+Agregar una iteración a un Proyecto , tener en cuenta que no puede haber overlapping de fechas entre diferentes Sprints. Es decir que si hay una iteración que empieza el día 1 de junio y termina el 8 de junio , no podemos agregar un Sprint que comience el 3 de Junio para ese proyecto.
+
+Utilizar los métodos provistos en la clase estatica DateHelper.
