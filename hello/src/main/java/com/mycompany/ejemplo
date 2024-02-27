@@ -441,22 +441,15 @@ public class Sprint {
 
 
 public boolean addSprint(Sprint newSprint) {
-    // Asegurarse de que el conjunto de sprints esté inicializado
-    if (this.sprints == null) {
-        this.sprints = new HashSet<>();
-    }
-
-    // Verificar si el nuevo Sprint se superpone con algún Sprint existente
-    for (Sprint existingSprint : sprints) {
-        if (!newSprint.getEndDate().isBefore(existingSprint.getInitDate()) &&
-            !newSprint.getInitDate().isAfter(existingSprint.getEndDate())) {
-            // Existe superposición si el nuevo Sprint comienza antes de que termine un Sprint existente
-            // o termina después de que comienza un Sprint existente
-            return false; // Indica que hay superposición y no se puede añadir el nuevo Sprint
+        for (Sprint sprint : sprints) {
+            // Verificar si el nuevo sprint se solapa con cualquier sprint existente
+            if (!newSprint.getInitDate().isAfter(sprint.getEndDate())) {
+                // Si la fecha de inicio del nuevo sprint es antes o el mismo día que la fecha de finalización de un sprint existente,
+                // entonces hay una superposición y no se debe añadir el nuevo sprint
+                return false;
+            }
         }
+        // Si no hay superposiciones, añadir el nuevo sprint al conjunto
+        sprints.add(newSprint);
+        return true;
     }
-
-    // Si no hay superposición, añade el nuevo Sprint al conjunto
-    sprints.add(newSprint);
-    return true; // Indica que el nuevo Sprint fue añadido exitosamente
-}
