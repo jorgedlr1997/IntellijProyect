@@ -501,3 +501,9 @@ public boolean addSprint(Sprint newSprint) {
     sprints.add(newSprint); // No hay solapamiento
     return true;
 }
+
+
+Verificación de solapamientos:
+isBetween para fechas de inicio y fin del nuevo sprint: Se verifica si la fecha de inicio o de fin del nuevo sprint se encuentra entre la fecha de inicio y de fin de algún sprint existente. Esto captura el caso donde el nuevo sprint comienza o termina dentro del rango de fechas de un sprint existente.
+isContainedInRange para el nuevo sprint respecto a los existentes: Se verifica si el rango completo del nuevo sprint (desde su inicio hasta su fin) contiene completamente el rango de un sprint existente. Aunque en la explicación inicial, este método parecía estar conceptualmente invertido, la idea es verificar si el nuevo sprint encapsula completamente a un sprint existente.
+isContainedInRange para los sprints existentes respecto al nuevo: Aquí se hace la verificación inversa, es decir, si alguno de los sprints existentes encapsula completamente al nuevo sprint. Esto es útil para detectar cuando el nuevo sprint es más corto y cae completamente dentro del rango de fechas de un sprint existente.
