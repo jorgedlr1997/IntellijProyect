@@ -458,3 +458,32 @@ public boolean addSprint(Sprint newSprint) {
 Agregar una iteración a un Proyecto , tener en cuenta que no puede haber overlapping de fechas entre diferentes Sprints. Es decir que si hay una iteración que empieza el día 1 de junio y termina el 8 de junio , no podemos agregar un Sprint que comience el 3 de Junio para ese proyecto.
 
 Utilizar los métodos provistos en la clase estatica DateHelper.
+
+
+
+
+ public boolean addSprint(Sprint newSprint) {
+        for (Sprint existingSprint : sprints) {
+            if (DateHelper.isContainedInRange(newSprint.getInitDate(), newSprint.getEndDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
+                DateHelper.isContainedInRange(existingSprint.getInitDate(), existingSprint.getEndDate(), newSprint.getInitDate(), newSprint.getEndDate())) {
+                // Existe solapamiento de fechas, por lo que no se puede agregar el nuevo sprint
+                return false;
+            }
+        }
+
+        // No hay solapamiento, se puede agregar el nuevo sprint
+        sprints.add(newSprint);
+        return true;
+    }
+
+
+public class DateHelper {
+
+    public static boolean isBetween(LocalDate date, LocalDate start, LocalDate end) {
+        return !date.isBefore(start) && !date.isAfter(end);
+    }
+
+    public static boolean isContainedInRange(LocalDate start, LocalDate end, LocalDate rangeStart, LocalDate rangeEnd) {
+        return (start.isBefore(rangeEnd) || start.equals(rangeEnd)) && (end.isAfter(rangeStart) || end.equals(rangeStart));
+    }
+}
