@@ -487,3 +487,17 @@ public class DateHelper {
         return (start.isBefore(rangeEnd) || start.equals(rangeEnd)) && (end.isAfter(rangeStart) || end.equals(rangeStart));
     }
 }
+
+
+public boolean addSprint(Sprint newSprint) {
+    for (Sprint existingSprint : sprints) {
+        if (DateHelper.isBetween(newSprint.getInitDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
+            DateHelper.isBetween(newSprint.getEndDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
+            DateHelper.isContainedInRange(newSprint.getInitDate(), newSprint.getEndDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
+            DateHelper.isContainedInRange(existingSprint.getInitDate(), existingSprint.getEndDate(), newSprint.getInitDate(), newSprint.getEndDate())) {
+            return false; // Existe solapamiento
+        }
+    }
+    sprints.add(newSprint); // No hay solapamiento
+    return true;
+}
