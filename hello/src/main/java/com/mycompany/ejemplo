@@ -1,79 +1,4 @@
-package app.academy.controller;
-
-import app.academy.model.ResponseType;
-import app.academy.service.MovieFeignService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
-
 @RestController
-public class ClienteController {
-
-    @Autowired
-    MovieFeignService movieFeignService;
-
-    @Autowired
-    public ClienteController(MovieFeignService movieFeignService) {
-        this.movieFeignService = movieFeignService;
-    }
-
-    @GetMapping("/{typeMovie}/{daysRented}")
-    public ResponseEntity<ResponseType> calculatePriceAndPoints(@PathVariable String typeMovie, @PathVariable int daysRented) {
-        return movieFeignService.calculatePriceAndPoints(typeMovie, daysRented);
-    }
-}package app.academy.service;
-
-import app.academy.model.ResponseType;
-import app.academy.model.TypeMovie;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-
-@Service
-public class MovieFeignService {
-
-    @Autowired
-    TypeMovieClientRest typeMovieClientRest;
-
-    public ResponseEntity<ResponseType> calculatePriceAndPoints(String typeMovie,int daysRented){
-        return typeMovieClientRest.calculatePriceAndPoints(TypeMovie.valueOf(typeMovie), daysRented);
-    }
-}package app.academy.service;
-
-import app.academy.model.ResponseType;
-import app.academy.model.TypeMovie;
-import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-
-@FeignClient(name= "servicio-movie-types")
-public interface TypeMovieClientRest {
-
-    @GetMapping("{typeMovie}/{daysRented}")
-    ResponseEntity<ResponseType> calculatePriceAndPoints(@PathVariable TypeMovie typeMovie, @PathVariable int daysRented);
-}package app.academy.model;
-
-import lombok.*;
-
-@Data
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-public class ResponseType {
-    private double price;
-    private int frequentRenterPoints;
-}
-public enum TypeMovie {
-
-    CHILDREN,
-    NEW_RELEASE,
-    REGULAR
-
-}@RestController
 //@RequestMapping("/api/movietype")
 public class TypeController {
 
@@ -89,16 +14,23 @@ public class TypeController {
         MovieData data = new MovieData(TypeMovie.valueOf(typeMovie), daysRented);
         return ResponseEntity.status(HttpStatus.OK).body(typeService.calculate(data));
     }
-}package com.academy.service;
+}
+@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class ResponseType {
+    private double price;
+    private int frequentRenterPoints;
+}
+public enum TypeMovie {
 
-import com.academy.model.MovieData;
-import com.academy.model.ResponseType;
-import com.academy.model.TypeMovie;
-import com.academy.strategy.ChildrenMovie;
-import com.academy.strategy.NewReleaseMovie;
-import com.academy.strategy.RegularMovie;
-import org.springframework.stereotype.Service;
+    CHILDREN,
+    NEW_RELEASE,
+    REGULAR
 
+}
 @Service
 public class TypeService {
 
@@ -123,5 +55,61 @@ public class TypeService {
             default -> throw new IllegalArgumentException();
         };
     }
-}spring.application.name=servicio-movie-types
+}
+spring.application.name=servicio-movie-types
 server.port=8001
+
+conectarlo y que este coja los resultados de ese controller
+
+
+@RestController
+public class ClienteController {
+
+    @Autowired
+    MovieFeignService movieFeignService;
+
+    @Autowired
+    public ClienteController(MovieFeignService movieFeignService) {
+        this.movieFeignService = movieFeignService;
+    }
+
+    @GetMapping("/{typeMovie}/{daysRented}")
+    public ResponseEntity<ResponseType> calculatePriceAndPoints(@PathVariable String typeMovie, @PathVariable int daysRented) {
+        return movieFeignService.calculatePriceAndPoints(typeMovie, daysRented);
+    }
+}
+@Service
+public class MovieFeignService {
+
+    @Autowired
+    TypeMovieClientRest typeMovieClientRest;
+
+    public ResponseEntity<ResponseType> calculatePriceAndPoints(String typeMovie,int daysRented){
+        return typeMovieClientRest.calculatePriceAndPoints(TypeMovie.valueOf(typeMovie), daysRented);
+    }
+}
+package app.academy.service;
+
+import app.academy.model.ResponseType;
+import app.academy.model.TypeMovie;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+@FeignClient(name= "servicio-movie-types",url = "http://localhost:8001")
+public interface TypeMovieClientRest {
+
+    @GetMapping("/api/movietype/{typeMovie}/{daysRented}")
+    ResponseEntity<ResponseType> calculatePriceAndPoints(@PathVariable TypeMovie typeMovie, @PathVariable int daysRented);
+}
+spring.application.name=servicio-rental-service
+server.port=8002
+spring.datasource.url=jdbc:mysql://localhost:3306/rental_movies
+spring.datasource.username=root
+spring.datasource.password=rootroot
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.jpa.hibernate.ddl-auto=create
+spring.jpa.database-platform=org.hibernate.dialect.MySQLDialect
+spring.jpa.show-sql=true
+
