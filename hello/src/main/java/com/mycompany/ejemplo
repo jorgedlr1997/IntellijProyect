@@ -1,509 +1,127 @@
-package com.notification.app.decorator;
+package app.academy.controller;
 
-import com.notification.app.model.Flight;
-import com.notification.app.model.User;
+import app.academy.model.ResponseType;
+import app.academy.service.MovieFeignService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
 
-public interface Notificator {
-    void send(User user, Flight flight);
+@RestController
+public class ClienteController {
+
+    @Autowired
+    MovieFeignService movieFeignService;
+
+    @Autowired
+    public ClienteController(MovieFeignService movieFeignService) {
+        this.movieFeignService = movieFeignService;
+    }
+
+    @GetMapping("/{typeMovie}/{daysRented}")
+    public ResponseEntity<ResponseType> calculatePriceAndPoints(@PathVariable String typeMovie, @PathVariable int daysRented) {
+        return movieFeignService.calculatePriceAndPoints(typeMovie, daysRented);
+    }
+}package app.academy.service;
+
+import app.academy.model.ResponseType;
+import app.academy.model.TypeMovie;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+
+@Service
+public class MovieFeignService {
+
+    @Autowired
+    TypeMovieClientRest typeMovieClientRest;
+
+    public ResponseEntity<ResponseType> calculatePriceAndPoints(String typeMovie,int daysRented){
+        return typeMovieClientRest.calculatePriceAndPoints(TypeMovie.valueOf(typeMovie), daysRented);
+    }
+}package app.academy.service;
+
+import app.academy.model.ResponseType;
+import app.academy.model.TypeMovie;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+@FeignClient(name= "servicio-movie-types")
+public interface TypeMovieClientRest {
+
+    @GetMapping("{typeMovie}/{daysRented}")
+    ResponseEntity<ResponseType> calculatePriceAndPoints(@PathVariable TypeMovie typeMovie, @PathVariable int daysRented);
+}package app.academy.model;
+
+import lombok.*;
+
+@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class ResponseType {
+    private double price;
+    private int frequentRenterPoints;
 }
+public enum TypeMovie {
 
-import com.notification.app.model.Flight;
-import com.notification.app.model.User;
+    CHILDREN,
+    NEW_RELEASE,
+    REGULAR
 
-import static com.notification.app.formatter.FormatterPrint.printNotification;
+}@RestController
+//@RequestMapping("/api/movietype")
+public class TypeController {
 
-public class EmailMessageBase implements Notificator {
-    private static final String EMAIL_MESSAGE= "Message received by email";
+    TypeService typeService;
 
-
-    @Override
-    public void send(User user, Flight flight) {
-        printNotification(flight, user, EMAIL_MESSAGE);
-    }
-}
-
-ackage com.notification.app.decorator;
-
-import com.notification.app.model.Flight;
-import com.notification.app.model.User;
-
-import static com.notification.app.formatter.FormatterPrint.printNotification;
-
-public class SmsMessage extends EmailMessageBase {
-    private static final String SMS_MESSAGE = "Message received by sms";
-
-    public SmsMessage() {
-        super();
+    @Autowired
+    public TypeController(TypeService typeService) {
+        this.typeService = typeService;
     }
 
-    @Override
-    public void send(User user, Flight flight) {
-        super.send(user, flight);
-        printNotification(flight, user, SMS_MESSAGE);
+    @GetMapping("/{typeMovie}/{daysRented}")
+    public ResponseEntity<ResponseType> calculatePriceAndPoints(@PathVariable String typeMovie, @PathVariable int daysRented){
+        MovieData data = new MovieData(TypeMovie.valueOf(typeMovie), daysRented);
+        return ResponseEntity.status(HttpStatus.OK).body(typeService.calculate(data));
     }
-}
-package com.notification.app.decorator;
+}package com.academy.service;
 
-import com.notification.app.model.Flight;
-import com.notification.app.model.User;
+import com.academy.model.MovieData;
+import com.academy.model.ResponseType;
+import com.academy.model.TypeMovie;
+import com.academy.strategy.ChildrenMovie;
+import com.academy.strategy.NewReleaseMovie;
+import com.academy.strategy.RegularMovie;
+import org.springframework.stereotype.Service;
 
-import static com.notification.app.formatter.FormatterPrint.printNotification;
+@Service
+public class TypeService {
 
-public class WhatsappMessage extends SmsMessage{
-    private static final String WHATSAPP_MESSAGE = "Message received by Whatsapp";
+    public static final int ZERO = 0;
 
-
-    public WhatsappMessage() {
-    }
-
-    @Override
-    public void send(User user, Flight flight) {
-        super.send(user, flight);
-        printNotification(flight, user, WHATSAPP_MESSAGE);
-    }
-}
-import com.notification.app.model.Flight;
-import com.notification.app.model.User;
-
-import static com.notification.app.model.Flight.formatterDateTime;
-
-public class FormatterPrint {
-
-    public static void printNotification(Flight flight, User user , String messageSend) {
-        System.out.println("Estimado "+ user.getName() +" ," +
-                " le informamos que el vuelo "+flight.getFlightNumber()+" de la aerolinea " +flight.getAirlineName()+
-                " desde el aeropuerto de "+flight.getDepartureAirportName() +" con destino a " +
-                flight.getArrivalAirportName() +" programado para el dia  " +flight.getDepartureEstimatedDayOfMonth()+
-                "\na las "+formatterDateTime(flight.getDepartureCurrent())+" ha sufrido un cambio . Los nuevos datos son "+flight.toString()+
-                ". El vuelo ha cambiado " + formatterDateTime(flight.getDepartureEstimated())+". " + messageSend);
-    }
-}
-
-package com.notification.app.model;
-
-import com.notification.app.decorator.Notificator;
-import com.notification.app.formatter.FormatterPrint;
-import com.notification.app.observer.ObservableCustom;
-import com.notification.app.observer.ObserverCustom;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Getter;
-
-import java.util.logging.Logger;
-
-import static com.notification.app.formatter.FormatterPrint.printNotification;
-
-public class User implements ObserverCustom {
-
-    @Getter
-    String name;
-    Notificator notificator;
-
-    public User(String name, Notificator notificator) {
-        this.name = name;
-        this.notificator = notificator;
-    }
-
-    @Override
-    public void update(ObservableCustom o, Object arg) {
-        Flight flight = (Flight) o;
-        notificator.send(this, flight);
-    }
-}
-package com.notification.app.model;
-
-import com.notification.app.observer.ObservableCustom;
-
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-
-public class Flight extends ObservableCustom{
-
-    private Airline airline;
-    private String flightNumber;
-    private FlightStatus status;
-    private LocalDateTime departureEstimated;
-    private LocalDateTime arrivalEstimated;
-    private LocalDateTime arrivalCurrent;
-    private LocalDateTime departureCurrent;
-    private Airport departureAirport;
-    private Airport arrivalAirport;
-
-    public Flight(Airline airline, String flightNumber, FlightStatus status, LocalDateTime departureEstimated, LocalDateTime arrivalEstimated, LocalDateTime arrivalCurrent, LocalDateTime departureCurrent, Airport departureAirport, Airport arrivalAirport) {
-        this.airline = airline;
-        this.flightNumber = flightNumber;
-        this.status = status;
-        this.departureEstimated = departureEstimated;
-        this.arrivalEstimated = arrivalEstimated;
-        this.arrivalCurrent = arrivalCurrent;
-        this.departureCurrent = departureCurrent;
-        this.departureAirport = departureAirport;
-        this.arrivalAirport = arrivalAirport;
-    }
-
-    private Flight(){}
-
-    public String getAirlineName (){
-        return airline.getName();
-    }
-
-    public String getDepartureAirportName (){
-        return departureAirport.getName();
-    }
-    public String getArrivalAirportName (){
-        return arrivalAirport.getName();
-    }
-
-    public void setAirline(Airline airline) {
-        this.airline = airline;
-    }
-
-    public void setFlightNumber(String flightNumber) {
-        this.flightNumber = flightNumber;
-    }
-
-    public void setStatus(FlightStatus status) {
-        this.status = status;
-    }
-
-    public void setDepartureEstimated(LocalDateTime departureEstimated) {
-        this.departureEstimated = departureEstimated;
-    }
-
-    public void setArrivalEstimated(LocalDateTime arrivalEstimated) {
-        this.arrivalEstimated = arrivalEstimated;
-    }
-
-    public void setArrivalCurrent(LocalDateTime arrivalCurrent) {
-        this.arrivalCurrent = arrivalCurrent;
-    }
-
-    public void setDepartureCurrent(LocalDateTime departureCurrent) {
-        this.departureCurrent = departureCurrent;
-    }
-
-    public void setDepartureAirport(Airport departureAirport) {
-        this.departureAirport = departureAirport;
-    }
-
-    public void setArrivalAirport(Airport arrivalAirport) {
-        this.arrivalAirport = arrivalAirport;
-    }
-
-    public Airline getAirline() {
-        return airline;
-    }
-
-    public String getFlightNumber() {
-        return flightNumber;
-    }
-
-    public FlightStatus getStatus() {
-        return status;
-    }
-
-    public LocalDateTime getDepartureEstimated() {
-        return departureEstimated;
-    }
-
-    public int getDepartureEstimatedDayOfMonth() {
-        return departureEstimated.getDayOfMonth();
-    }
-
-    public LocalDateTime getArrivalEstimated() {
-        return arrivalEstimated;
-    }
-
-    public LocalDateTime getArrivalCurrent() {
-        return arrivalCurrent;
-    }
-
-    public LocalDateTime getDepartureCurrent() {
-        return departureCurrent;
-    }
-
-    public Airport getDepartureAirport() {
-        return departureAirport;
-    }
-
-    public Airport getArrivalAirport() {
-        return arrivalAirport;
-    }
-
-    public void changesDepartureEstimatedFlight(LocalDateTime localDateTime){
-        setDepartureEstimated(localDateTime);
-        this.setChanged();
-        this.notifyObservers();
-    }
-
-    public void changesArrivalEstimatedFlight(LocalDateTime localDateTime){
-        setArrivalEstimated(localDateTime);
-        this.setChanged();
-        notifyObservers();
-    }
-
-
- @Override
-    public List<User> findAll() {
-        List<User> userList = new ArrayList<>();
-        try (PreparedStatement preparedStatement = conn.prepareStatement("select * from users");
-        ){
-            ResultSet rs = preparedStatement.executeQuery();
-            while (rs.next()) {
-                Set<Role> roles = new HashSet<>();
-                // roles
-                PreparedStatement psRoles = conn.prepareStatement("select role_name from roles_by_user inner join roles r on roles_by_user.id_role = r.id where id_user = ?");
-                psRoles.setInt(1, rs.getInt("id"));
-                ResultSet rsRoles = psRoles.executeQuery();
-                while (rsRoles.next()) {
-                    roles.add(Role.valueOf(rsRoles.getString("role_name")));
-                }
-                userList.add(User.builder()
-                        .roles(roles)
-                        .username("username")
-                        .name(rs.getString("name"))
-                        .lastName(rs.getString("last_name"))
-                        .id(rs.getInt("id"))
-                        .birthday(rs.getDate("birthday").toLocalDate())
-                        .build());
-            }
-
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+    public ResponseType calculate(MovieData movieData){
+        int frequentRenterPoints = ZERO;
+        double price = getAmount(movieData);
+        if (movieData.getTypeMovie() == TypeMovie.NEW_RELEASE) {
+            frequentRenterPoints = new NewReleaseMovie().getFrequentRenterPoints(movieData.getDaysRented());
+        }else{
+            frequentRenterPoints++;
         }
-
-        return userList;
+        return new ResponseType(price, frequentRenterPoints);
     }
 
-
-
-
- public Optional<User> findByUsername(String username) {
-
-        try(
-                PreparedStatement st = conn.prepareStatement("select * from users where username = ?");
-        ) {
-            st.setString(1,  username);
-            ResultSet rs = st.executeQuery();
-            if (rs.next()) {
-                //roles
-                Set<Role> roles = new HashSet<>();
-                PreparedStatement rolesSt = conn.prepareStatement("""
-                    select role_name from roles_by_user inner join roles r on roles_by_user.id_role = r.id
-                    where id_user = ?
-                """);
-                rolesSt.setInt(1, rs.getInt("id"));
-                ResultSet rsRoles = rolesSt.executeQuery();
-                while (rsRoles.next()) {
-                    roles.add(Role.valueOf(rsRoles.getString("role_name")));
-                }
-                return Optional.of(User.builder()
-                        .roles(roles)
-                        .name(rs.getString("name"))
-                        .lastName(rs.getString("last_name"))
-                        .username(rs.getString("username"))
-                        .birthday(rs.getDate("birthday").toLocalDate())
-                        .id(rs.getInt("id"))
-                        .build());
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-        return Optional.empty();
+    private double getAmount(MovieData movieData) {
+        return switch (movieData.getTypeMovie()){
+            case REGULAR -> new RegularMovie().getAmount(movieData.getDaysRented());
+            case CHILDREN -> new ChildrenMovie().getAmount(movieData.getDaysRented());
+            case NEW_RELEASE -> new NewReleaseMovie().getAmount(movieData.getDaysRented());
+            default -> throw new IllegalArgumentException();
+        };
     }
-}
-
-
-
-
-package com.globant.academy.jirakata.functions;
-
-import java.time.LocalDate;
-
-public class DateHelper {
-
-    public static boolean isBetween(LocalDate date, LocalDate from, LocalDate to) {
-        return date.isAfter(from) && date.isBefore(to);
-    }
-
-    public static boolean isContainedInRange(LocalDate begin,
-                                              LocalDate end,
-                                              LocalDate sprintBegin,
-                                              LocalDate sprintEnd) {
-        return begin.isBefore(sprintBegin) && end.isAfter(sprintEnd);
-    }
-}
-
-package com.globant.academy.jirakata.model;
-
-import com.globant.academy.jirakata.functions.DateHelper;
-import lombok.Getter;
-import lombok.NonNull;
-
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
-
-public class Project {
-    @Getter
-    private String name;
-    @Getter
-    private String description;
-    private String codeId;
-    @Getter
-    private Set<Sprint> sprints;
-
-    public Project(@NonNull String name, @NonNull String description) {
-        this.name = name;
-        this.description = description;
-    }
-
-    public Project(String name, String description, String codeId, Set<Sprint> sprints) {
-        this.name = name;
-        this.description = description;
-        this.codeId = codeId;
-        this.sprints = new HashSet<>();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Project project = (Project) o;
-        return Objects.equals(codeId, project.codeId);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(codeId);
-    }
-
-    public boolean addSprint(Sprint newSprint) {
-        for (Sprint existingSprint : getSprints()) {
-            if (DateHelper.isContainedInRange(newSprint.getInitDate(), newSprint.getEndDate(),
-                    existingSprint.getInitDate(), existingSprint.getEndDate()) ||
-                    DateHelper.isContainedInRange(existingSprint.getInitDate(), existingSprint.getEndDate(),
-                            newSprint.getInitDate(), newSprint.getEndDate())) {
-                return false;
-            }
-        }
-        getSprints().add(newSprint);
-        return true;
-    }
-}
-
-@Test
-    void givenIterationInProjectWithOutOverlappingDates(){
-        LocalDate initDate = LocalDate.of(2024, 2, 28);
-        LocalDate endDate = LocalDate.of(2024, 3, 5);
-        Sprint sprint = new Sprint(initDate, endDate, null, "Description", null);
-        LocalDate initDateActualSprint = LocalDate.of(2024, 2, 15);
-        LocalDate endDateActualSprint = LocalDate.of(2024, 3, 1);
-        Sprint sprintActual = new Sprint(initDateActualSprint, endDateActualSprint, null, "Actual description", null);
-
-        Set<Sprint> sprints = new HashSet<>();
-        sprints.add(sprintActual);
-        Project project = new Project("IberiaApp", "Description", "1234", sprints);
-        boolean result = project.addSprint(sprint);
-
-        assertTrue(result);
-    }
-
-
-package com.globant.academy.jirakata.model;
-
-
-import lombok.Getter;
-import lombok.NonNull;
-
-import java.time.LocalDate;
-import java.util.Set;
-
-public class Sprint {
-
-    @Getter
-    private LocalDate initDate;
-    @Getter
-    private LocalDate endDate;
-    private Team team;
-    private String goals;
-    private Set<Task> tasks;
-
-    public Sprint(@NonNull LocalDate initDate,@NonNull LocalDate endDate, Team team,@NonNull String goals, Set<Task> tasks) {
-        this.initDate = initDate;
-        this.endDate = endDate;
-        this.team = team;
-        this.goals = goals;
-        this.tasks = tasks;
-    }
-}
-
-
-
-public boolean addSprint(Sprint newSprint) {
-        for (Sprint sprint : sprints) {
-            // Verificar si el nuevo sprint se solapa con cualquier sprint existente
-            if (!newSprint.getInitDate().isAfter(sprint.getEndDate())) {
-                // Si la fecha de inicio del nuevo sprint es antes o el mismo día que la fecha de finalización de un sprint existente,
-                // entonces hay una superposición y no se debe añadir el nuevo sprint
-                return false;
-            }
-        }
-        // Si no hay superposiciones, añadir el nuevo sprint al conjunto
-        sprints.add(newSprint);
-        return true;
-    }
-
-
-Agregar una iteración a un Proyecto , tener en cuenta que no puede haber overlapping de fechas entre diferentes Sprints. Es decir que si hay una iteración que empieza el día 1 de junio y termina el 8 de junio , no podemos agregar un Sprint que comience el 3 de Junio para ese proyecto.
-
-Utilizar los métodos provistos en la clase estatica DateHelper.
-
-
-
-
- public boolean addSprint(Sprint newSprint) {
-        for (Sprint existingSprint : sprints) {
-            if (DateHelper.isContainedInRange(newSprint.getInitDate(), newSprint.getEndDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
-                DateHelper.isContainedInRange(existingSprint.getInitDate(), existingSprint.getEndDate(), newSprint.getInitDate(), newSprint.getEndDate())) {
-                // Existe solapamiento de fechas, por lo que no se puede agregar el nuevo sprint
-                return false;
-            }
-        }
-
-        // No hay solapamiento, se puede agregar el nuevo sprint
-        sprints.add(newSprint);
-        return true;
-    }
-
-
-public class DateHelper {
-
-    public static boolean isBetween(LocalDate date, LocalDate start, LocalDate end) {
-        return !date.isBefore(start) && !date.isAfter(end);
-    }
-
-    public static boolean isContainedInRange(LocalDate start, LocalDate end, LocalDate rangeStart, LocalDate rangeEnd) {
-        return (start.isBefore(rangeEnd) || start.equals(rangeEnd)) && (end.isAfter(rangeStart) || end.equals(rangeStart));
-    }
-}
-
-
-public boolean addSprint(Sprint newSprint) {
-    for (Sprint existingSprint : sprints) {
-        if (DateHelper.isBetween(newSprint.getInitDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
-            DateHelper.isBetween(newSprint.getEndDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
-            DateHelper.isContainedInRange(newSprint.getInitDate(), newSprint.getEndDate(), existingSprint.getInitDate(), existingSprint.getEndDate()) ||
-            DateHelper.isContainedInRange(existingSprint.getInitDate(), existingSprint.getEndDate(), newSprint.getInitDate(), newSprint.getEndDate())) {
-            return false; // Existe solapamiento
-        }
-    }
-    sprints.add(newSprint); // No hay solapamiento
-    return true;
-}
-
-
-Verificación de solapamientos:
-isBetween para fechas de inicio y fin del nuevo sprint: Se verifica si la fecha de inicio o de fin del nuevo sprint se encuentra entre la fecha de inicio y de fin de algún sprint existente. Esto captura el caso donde el nuevo sprint comienza o termina dentro del rango de fechas de un sprint existente.
-isContainedInRange para el nuevo sprint respecto a los existentes: Se verifica si el rango completo del nuevo sprint (desde su inicio hasta su fin) contiene completamente el rango de un sprint existente. Aunque en la explicación inicial, este método parecía estar conceptualmente invertido, la idea es verificar si el nuevo sprint encapsula completamente a un sprint existente.
-isContainedInRange para los sprints existentes respecto al nuevo: Aquí se hace la verificación inversa, es decir, si alguno de los sprints existentes encapsula completamente al nuevo sprint. Esto es útil para detectar cuando el nuevo sprint es más corto y cae completamente dentro del rango de fechas de un sprint existente.
+}spring.application.name=servicio-movie-types
+server.port=8001
