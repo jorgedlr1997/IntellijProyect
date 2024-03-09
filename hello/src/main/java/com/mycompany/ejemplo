@@ -3,3 +3,85 @@
 00:45:40.413 [main] INFO org.springframework.boot.devtools.restart.RestartApplicationListener -- Restart disabled due to context in which it is running
 OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
 
+package myproject.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import myproject.mapper.ClientMapper;
+import myproject.model.dto.ClientDto;
+import myproject.model.entity.Client;
+import myproject.model.request.ClientRequest;
+import myproject.service.ClientService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class ClientControllerTest {
+
+    @Autowired
+    MockMvc mvc;
+    @MockBean
+    private ClientService clientService;
+    @Autowired
+    ClientMapper clientMapper;
+    ObjectMapper objectMapper;
+
+    Client client;
+    ClientDto clientDto;
+    ClientRequest clientRequest;
+
+    @BeforeEach
+    void setUp(){
+        objectMapper = new ObjectMapper();
+        clientMapper = new ClientMapper();
+        client = new Client(1L, "Jorge", "del Riego", "jorge@gmail.com", 26);
+        clientRequest = new ClientRequest("Jorge", "del Riego", "jorge@gmail.com", 26);
+        clientDto = new ClientDto("Jorge", "del Riego", "jorge@gmail.com", 26);
+    }
+
+    @Test
+    void givenAClientWithAllMandatoryParams_ThenSaveInTheBd() throws Exception {
+        when(clientMapper.toEntity(clientRequest)).thenReturn(client);
+        when(clientMapper.toDto(client)).thenReturn(clientDto);
+
+        mvc.perform(post("/api/clientes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(clientRequest)))
+                .andExpect(status().isCreated());
+    }
+
+}
+2024-03-10T00:50:34.812+01:00 DEBUG 35853 --- [           main] org.hibernate.SQL                        : alter table if exists invoice_product add constraint FK6n97f675s6shwtbdeddepjp9d foreign key (id_factura) references invoices
+2024-03-10T00:50:34.813+01:00 DEBUG 35853 --- [           main] org.hibernate.SQL                        : alter table if exists invoices add constraint FK9fbt36pf6epispvci1fnkvd4s foreign key (id_client) references clients
+
+org.mockito.exceptions.misusing.MissingMethodInvocationException: 
+when() requires an argument which has to be 'a method call on a mock'.
+For example:
+    when(mock.getArticles()).thenReturn(articles);
+
+Also, this error might show up because:
+1. you stub either of: final/private/equals()/hashCode() methods.
+   Those methods *cannot* be stubbed/verified.
+   Mocking methods declared on non-public parent classes is not supported.
+2. inside when() you don't call method on mock but on some other object.
+
+
+	at myproject.controller.ClientControllerTest.givenAClientWithAllMandatoryParams_ThenSaveInTheBd(ClientControllerTest.java:50)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+2024-03-10T00:50:35.176+01:00 DEBUG 35853 --- [ionShutdownHook] org.hibernate.SQL                        : drop table if exists banks cascade 
+2024-03-10T00:50:35.177+01:00 DEBUG 35853 --- [ionShutdownHook] org.hibernate.SQL                        : drop table if exists clients cascade 
+2024-03-10T00:50:35.177+01:00 DEBUG 35853 --- [ionShutdownHook] org.hibernate.SQL  
