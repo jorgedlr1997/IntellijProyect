@@ -113,3 +113,96 @@ spring.jpa.hibernate.ddl-auto=create
 spring.jpa.database-platform=org.hibernate.dialect.MySQLDialect
 spring.jpa.show-sql=true
 
+
+
+
+package myproject.model.request;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import javax.validation.constraints.NotNull;
+
+@Getter
+@Setter
+public class ClientRequest {
+
+    @NotNull(message = "The name must be not null")
+    private String name;
+    private String lastName;
+    private String email;
+    private int age;
+}
+
+package myproject.model.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import javax.validation.constraints.NotNull;
+
+@Getter
+@Setter
+@Entity
+@Table(name ="clients")
+public class Client {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @NotNull(message = "The name must be not null")
+    private String name;
+    @Column(name = "last_name")
+    private String lastName;
+    private String email;
+    private int age;
+}
+
+import javax.validation.Valid;
+import java.net.URI;
+
+@RestController
+@RequestMapping("/api/clients")
+@Validated
+public class ClientController {
+
+    ClientService clientService;
+    ClientMapper clientMapper;
+
+    @Autowired
+    public ClientController(ClientService clientService, ClientMapper clientMapper) {
+        this.clientService = clientService;
+        this.clientMapper = clientMapper;
+    }
+
+    @PostMapping
+    public ResponseEntity<ClientDto> save(@Valid @RequestBody ClientRequest clientRequest){
+        Client client = clientService.save(clientMapper.toEntity(clientRequest));
+        return  ResponseEntity.created(generateUri(client.getId())).body(clientMapper.toDto(client));
+    }
+
+    private URI generateUri(Long clientId)
+    {
+        return ServletUriComponentsBuilder
+                .fromCurrentRequest().path("/{id}")
+                .buildAndExpand(clientId)
+                .toUri();
+    }
+}
+
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Objects;
+
+@RestControllerAdvice
+public class ControllerAdvice {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<String> handlerClientInvalid(MethodArgumentNotValidException ex){
+        return new ResponseEntity<>(Objects.requireNonNull(ex.getFieldError()).getDefaultMessage(), HttpStatus.BAD_REQUEST);
+    }
+}
+
