@@ -1,108 +1,57 @@
-package myproject.controller;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import myproject.mapper.ClientMapper;
-import myproject.model.dto.ClientDto;
-import myproject.model.entity.Client;
-import myproject.model.request.ClientRequest;
-import myproject.service.ClientService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-
-@SpringBootTest
-@AutoConfigureMockMvc
-class ClientControllerTest {
+@RestController
+@RequestMapping("/api/invoices")
+public class InvoiceController {
+    InvoiceService invoiceService;
+    InvoiceMapper invoiceMapper;
+    ProductRepository productRepository;
+    ClientService clientService;
+    CardService cardService;
 
     @Autowired
-    MockMvc mvc;
-    @MockBean
-    private ClientService clientService;
-    @MockBean
-    ClientMapper clientMapper;
-    ObjectMapper objectMapper;
-
-    Client client;
-    ClientDto clientDto;
-    ClientRequest clientRequest;
-
-    @BeforeEach
-    void setUp(){
-        objectMapper = new ObjectMapper();
-        client = new Client(1L, "Jorge", "del Riego", "jorge@gmail.com", 26);
-        clientRequest = new ClientRequest("Jorge", "del Riego", "jorge@gmail.com", 26);
-        clientDto = new ClientDto("Jorge", "del Riego", "jorge@gmail.com", 26);
+    public InvoiceController(InvoiceService invoiceService, InvoiceMapper invoiceMapper
+            , ProductRepository productRepository
+            , ClientService clientService
+            , CardService cardService) {
+        this.invoiceService = invoiceService;
+        this.invoiceMapper = invoiceMapper;
+        this.productRepository = productRepository;
+        this.clientService = clientService;
+        this.cardService =  cardService;
     }
 
-    @Test
-    void givenAClientWithAllMandatoryParams_ThenSaveInTheBd() throws Exception {
-        when(clientMapper.toEntity(clientRequest)).thenReturn(client);
-        when(clientService.save(client)).then(invocation ->{
-            Client c = invocation.getArgument(0);
-            c.setId(1L);
-            return c;
-        });
+    @PostMapping()
+    public ResponseEntity<?> save(@RequestBody InvoiceRequest invoiceRequest) {
+        Invoice invoice = invoiceMapper.toEntity(invoiceRequest);
+        List<Product> products = productRepository.findAllById(invoiceRequest.getProduct());
+        Client client = clientService.findById(invoiceRequest.getClient())
+                .orElseThrow(() -> new IllegalArgumentException("The client id not found"));
+        invoice.setProduct(products);
+        invoice.setClient(client);
+        invoice.setTotalAmount(invoice.getProduct().stream().mapToDouble(Product::getPrice).sum());
 
-        mvc.perform(post("/api/clients")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(clientRequest)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("Jorge"));
+        List<Card> cards = cardService.findByClient(invoice.getClient());
+        for (Card card : cards) {
+            if (invoice.getTotalAmount() < card.getAmount()) {
+                card.setAmount(card.getAmount()-invoice.getTotalAmount());
+                cardService.save(card);
+                return ResponseEntity.status(HttpStatus.CREATED).body(invoiceMapper.toDto(invoiceService.save(invoice)));
+            }
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new RuntimeException("The amount is bigger than amount card"));
     }
-Handler:
-             Type = myproject.controller.ClientController
-           Method = myproject.controller.ClientController#save(ClientRequest)
 
-Async:
-    Async started = false
-     Async result = null
+@Service
+public class InvoiceService {
 
-Resolved Exception:
-             Type = null
+    InvoiceRepository invoiceRepository;
+    CardRepository cardRepository;
 
-ModelAndView:
-        View name = null
-             View = null
-            Model = null
+    @Autowired
+    public InvoiceService(InvoiceRepository invoiceRepository, CardRepository cardRepository) {
+        this.invoiceRepository = invoiceRepository;
+        this.cardRepository =  cardRepository;
+    }
 
-FlashMap:
-       Attributes = null
-
-MockHttpServletResponse:
-           Status = 201
-    Error message = null
-          Headers = []
-     Content type = null
-             Body = 
-    Forwarded URL = null
-   Redirected URL = null
-          Cookies = []
-
-java.lang.AssertionError: No value at JSON path "$.name"
-
-	at org.springframework.test.util.JsonPathExpectationsHelper.evaluateJsonPath(JsonPathExpectationsHelper.java:302)
-	at org.springframework.test.util.JsonPathExpectationsHelper.assertValue(JsonPathExpectationsHelper.java:99)
-	at org.springframework.test.web.servlet.result.JsonPathResultMatchers.lambda$value$2(JsonPathResultMatchers.java:111)
-	at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
-	at myproject.controller.ClientControllerTest.givenAClientWithAllMandatoryParams_ThenSaveInTheBd(ClientControllerTest.java:61)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
-	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
-Caused by: java.lang.IllegalArgumentException: json can not be null or empty
-	at com.jayway.jsonpath.internal.Utils.notEmpty(Utils.java:401)
-	at com.jayway.jsonpath.JsonPath.read(JsonPath.java:390)
-	at com.jayway.jsonpath.JsonPath.read(JsonPath.java:377)
-	at org.springframework.test.util.JsonPathExpectationsHelper.evaluateJsonPath(JsonPathExpectationsHelper.java:299)
-	... 7 more
-
+    public Invoice save(Invoice invoice){
+        return invoiceRepository.save(invoice);
+    }
