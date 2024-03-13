@@ -1,57 +1,45 @@
-@RestController
-@RequestMapping("/api/invoices")
-public class InvoiceController {
-    InvoiceService invoiceService;
-    InvoiceMapper invoiceMapper;
-    ProductRepository productRepository;
-    ClientService clientService;
-    CardService cardService;
+CREATE TABLE players (
+    player_id  INT AUTO_INCREMENT PRIMARY KEY,
+    team_id INT,
+    name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(team_id)
+);
 
-    @Autowired
-    public InvoiceController(InvoiceService invoiceService, InvoiceMapper invoiceMapper
-            , ProductRepository productRepository
-            , ClientService clientService
-            , CardService cardService) {
-        this.invoiceService = invoiceService;
-        this.invoiceMapper = invoiceMapper;
-        this.productRepository = productRepository;
-        this.clientService = clientService;
-        this.cardService =  cardService;
-    }
+CREATE TABLE teams (
+    team_id INT AUTO_INCREMENT PRIMARY KEY,
+    team_name VARCHAR(50) NOT NULL
+);
 
-    @PostMapping()
-    public ResponseEntity<?> save(@RequestBody InvoiceRequest invoiceRequest) {
-        Invoice invoice = invoiceMapper.toEntity(invoiceRequest);
-        List<Product> products = productRepository.findAllById(invoiceRequest.getProduct());
-        Client client = clientService.findById(invoiceRequest.getClient())
-                .orElseThrow(() -> new IllegalArgumentException("The client id not found"));
-        invoice.setProduct(products);
-        invoice.setClient(client);
-        invoice.setTotalAmount(invoice.getProduct().stream().mapToDouble(Product::getPrice).sum());
+CREATE TABLE matches (
+    match_id INT AUTO_INCREMENT PRIMARY KEY,
+    local_team_id INT NOT NULL,
+    visitor_team_id INT NOT NULL,
+    date_match DATETIME,
+    FOREIGN KEY (local_team_id) REFERENCES teams(team_id),
+    FOREIGN KEY (visitor_team_id) REFERENCES teams(team_id)
+);
 
-        List<Card> cards = cardService.findByClient(invoice.getClient());
-        for (Card card : cards) {
-            if (invoice.getTotalAmount() < card.getAmount()) {
-                card.setAmount(card.getAmount()-invoice.getTotalAmount());
-                cardService.save(card);
-                return ResponseEntity.status(HttpStatus.CREATED).body(invoiceMapper.toDto(invoiceService.save(invoice)));
-            }
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new RuntimeException("The amount is bigger than amount card"));
-    }
+CREATE TABLE player_by_team_by_match (
+    player_id INT NOT NULL,
+    match_id INT NOT NULL,
+    points INT,
+    rebounds INT,
+    assists INT,
+    minutes INT,
+    fouls INT,
+    FOREIGN KEY (player_id) REFERENCES players(player_id),
+    FOREIGN KEY (match_id) REFERENCES matches(match_id),
+    PRIMARY KEY(player_id, match_id)
+);
 
-@Service
-public class InvoiceService {
+Listar los jugadores y a que equipo pertenecen (nombre, apellido , nombre_equipo).
+Listar los equipos cuyo nombre comience con la letra P.
+Listar los jugadores que pertenezcan a un equipo que contenga una “Deportivo” “Deportiva” o en su nombre (Por ej : “Deportivo La Coruña o Asociación Deportiva Berazategui ”.
+Listar los jugadores y su equipo siempre y cuando el jugador haya jugado al menos un partido.
+Listar los partidos con su fecha y los nombres de los equipos local y visitante y su marcador final
+Listar los equipos y la cantidad de jugadores que tiene .
+Listar los jugadores y la cantidad de partidos que jugó.
+Elaborar un ranking con los jugadores que más puntos hicieron en el torneo .
+Elaborar la tabla de posiciones por equipos .
 
-    InvoiceRepository invoiceRepository;
-    CardRepository cardRepository;
-
-    @Autowired
-    public InvoiceService(InvoiceRepository invoiceRepository, CardRepository cardRepository) {
-        this.invoiceRepository = invoiceRepository;
-        this.cardRepository =  cardRepository;
-    }
-
-    public Invoice save(Invoice invoice){
-        return invoiceRepository.save(invoice);
-    }
