@@ -1,45 +1,71 @@
-CREATE TABLE players (
-    player_id  INT AUTO_INCREMENT PRIMARY KEY,
-    team_id INT,
-    name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
-    FOREIGN KEY (team_id) REFERENCES teams(team_id)
-);
+Listar los jugadores y la cantidad de partidos que jugaron:
+sql
+Copy code
+SELECT 
+    p.player_id,
+    p.name,
+    p.last_name,
+    COUNT(pbm.match_id) AS cantidad_partidos
+FROM 
+    players p
+LEFT JOIN 
+    player_by_team_by_match pbm ON p.player_id = pbm.player_id
+GROUP BY 
+    p.player_id, p.name, p.last_name;
 
-CREATE TABLE teams (
-    team_id INT AUTO_INCREMENT PRIMARY KEY,
-    team_name VARCHAR(50) NOT NULL
-);
 
-CREATE TABLE matches (
-    match_id INT AUTO_INCREMENT PRIMARY KEY,
-    local_team_id INT NOT NULL,
-    visitor_team_id INT NOT NULL,
-    date_match DATETIME,
-    FOREIGN KEY (local_team_id) REFERENCES teams(team_id),
-    FOREIGN KEY (visitor_team_id) REFERENCES teams(team_id)
-);
+Aquí tienes las consultas SQL para cada uno de los requerimientos:
 
-CREATE TABLE player_by_team_by_match (
-    player_id INT NOT NULL,
-    match_id INT NOT NULL,
-    points INT,
-    rebounds INT,
-    assists INT,
-    minutes INT,
-    fouls INT,
-    FOREIGN KEY (player_id) REFERENCES players(player_id),
-    FOREIGN KEY (match_id) REFERENCES matches(match_id),
-    PRIMARY KEY(player_id, match_id)
-);
+Listar los jugadores y la cantidad de partidos que jugaron:
+sql
+Copy code
+SELECT 
+    p.player_id,
+    p.name,
+    p.last_name,
+    COUNT(pbm.match_id) AS cantidad_partidos
+FROM 
+    players p
+LEFT JOIN 
+    player_by_team_by_match pbm ON p.player_id = pbm.player_id
+GROUP BY 
+    p.player_id, p.name, p.last_name;
+En esta consulta, utilizamos un LEFT JOIN entre la tabla de jugadores (players) y la tabla de relación entre jugador y partido (player_by_team_by_match). Luego, contamos la cantidad de partidos por jugador utilizando la función de agregación COUNT, y agrupamos por las columnas relevantes del jugador.
 
-Listar los jugadores y a que equipo pertenecen (nombre, apellido , nombre_equipo).
-Listar los equipos cuyo nombre comience con la letra P.
-Listar los jugadores que pertenezcan a un equipo que contenga una “Deportivo” “Deportiva” o en su nombre (Por ej : “Deportivo La Coruña o Asociación Deportiva Berazategui ”.
-Listar los jugadores y su equipo siempre y cuando el jugador haya jugado al menos un partido.
-Listar los partidos con su fecha y los nombres de los equipos local y visitante y su marcador final
-Listar los equipos y la cantidad de jugadores que tiene .
-Listar los jugadores y la cantidad de partidos que jugó.
-Elaborar un ranking con los jugadores que más puntos hicieron en el torneo .
-Elaborar la tabla de posiciones por equipos .
+Elaborar un ranking con los jugadores que más puntos hicieron en el torneo:
+sql
+Copy code
+SELECT 
+    p.player_id,
+    p.name,
+    p.last_name,
+    SUM(pbm.points) AS total_puntos
+FROM 
+    players p
+INNER JOIN 
+    player_by_team_by_match pbm ON p.player_id = pbm.player_id
+GROUP BY 
+    p.player_id, p.name, p.last_name
+ORDER BY 
+    total_puntos DESC;
+
+
+Elaborar la tabla de posiciones por equipos:
+sql
+Copy code
+SELECT 
+    t.team_id,
+    t.team_name,
+    COUNT(pbm.match_id) AS cantidad_partidos,
+    SUM(pbm.points) AS total_puntos
+FROM 
+    teams t
+LEFT JOIN 
+    matches m ON t.team_id = m.local_team_id OR t.team_id = m.visitor_team_id
+LEFT JOIN 
+    player_by_team_by_match pbm ON t.team_id = pbm.team_id AND m.match_id = pbm.match_id
+GROUP BY 
+    t.team_id, t.team_name
+ORDER BY 
+    total_puntos DESC, cantidad_partidos DESC;
 
