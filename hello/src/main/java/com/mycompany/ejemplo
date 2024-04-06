@@ -1,71 +1,261 @@
-Listar los jugadores y la cantidad de partidos que jugaron:
-sql
-Copy code
-SELECT 
-    p.player_id,
-    p.name,
-    p.last_name,
-    COUNT(pbm.match_id) AS cantidad_partidos
-FROM 
-    players p
-LEFT JOIN 
-    player_by_team_by_match pbm ON p.player_id = pbm.player_id
-GROUP BY 
-    p.player_id, p.name, p.last_name;
+package com.ib.captwo.sse.favl.coreservice.impl;
+
+import static com.ib.captwo.sse.favl.coreservice.digitalmenu.DigitalMenuErrorCode.PDF_GENERATION_ERROR;
+import static org.apache.xmlgraphics.util.MimeConstants.MIME_PDF;
+
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Writer;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
+import javax.xml.transform.Result;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.sax.SAXResult;
+import javax.xml.transform.stream.StreamSource;
+
+import org.apache.commons.lang.math.NumberUtils;
+import org.apache.cxf.common.util.CollectionUtils;
+import org.apache.fop.apps.FOPException;
+import org.apache.fop.apps.FOUserAgent;
+import org.apache.fop.apps.Fop;
+import org.apache.fop.apps.FopFactory;
+import org.joda.time.LocalDate;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+
+import com.ib.captwo.sse.favl.coreservice.digitalmenu.DigitalMenuPdfType;
+import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.DigitalMenuDocumentData;
+import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.response.DigitalMenuResponse;
+import com.ib.captwo.sse.favl.coreservice.jaxb.domain.PDFDigitalMenu;
+import com.ib.captwo.sse.favl.coreservice.rules.DigitalMenuPdfRuleCriterial;
+import com.ib.framework.context.ClientContextHolder;
+import com.ib.framework.converter.GenericConverter;
+import com.ib.framework.exception.IBBusinessException;
+import com.ib.framework.rules.RuleEngine;
+import com.sun.xml.bind.marshaller.CharacterEscapeHandler;
+
+@Component
+public class DigitalMenuPDFBinaryGenerator{
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DigitalMenuPDFBinaryGenerator.class);
+    private static final int MAX_RETRIES_GENERATE = 3;
+    private static final String PDF_FILENAME_FORMAT = "DIGITAL_MENU_%s%s%s.pdf";
+    private static final String DATE_FORMAT = "ddMMyyyy";
+
+    private final GenericConverter converter;
+    private final FopFactory factory;
+    private final DigitalMenuResourceResolver templateResolver;
+    private final JAXBContext jaxbContext;
+    private final RuleEngine ruleEngine;
+    private final RuleEngine ruleEngineRegenerate;
+
+    //CGLIB constructor
+    public DigitalMenuPDFBinaryGenerator(){
+        super();
+        this.converter = null;
+        this.factory = null;
+        this.templateResolver = null;
+        this.jaxbContext = null;
+        this.ruleEngine = null;
+        this.ruleEngineRegenerate = null;
+    }
+
+    @Autowired
+    public DigitalMenuPDFBinaryGenerator(@Qualifier("ToPDFConverters")
+    final GenericConverter converter, final FopFactory factory, final DigitalMenuResourceResolver templateResolver,
+            @Qualifier("digital-menu-marshaller")
+            final JAXBContext context, @Qualifier("PDFRuleEngine")
+            final RuleEngine ruleEngine, @Qualifier("PDFRuleEngineRegenerate")
+            final RuleEngine ruleEngineRegenerate){
+        super();
+        this.converter = converter;
+        this.factory = factory;
+        this.jaxbContext = context;
+        this.templateResolver = templateResolver;
+        this.ruleEngine = ruleEngine;
+        this.ruleEngineRegenerate = ruleEngineRegenerate;
+    }
+
+    public DigitalMenuDocumentData generateBinaryPDF(final DigitalMenuResponse digitalMenuResponse,
+            final DigitalMenuPdfType type){
+
+        final PDFDigitalMenu pdfDigitalMenuConverted = converter.convert(digitalMenuResponse);
+        final PDFDigitalMenu pdfDigitalMenu = transformPDFDigitalMenu(pdfDigitalMenuConverted, type);
+
+        try{
+            if(isValid(pdfDigitalMenu)){
+                final String fileName = getFileName(pdfDigitalMenu);
+
+                return DigitalMenuDocumentData.builder().withFileName(fileName)
+                        .withBytes(generatePdfRaw(pdfDigitalMenu, type).toByteArray()).build();
+            }
+            throw new IBBusinessException(PDF_GENERATION_ERROR);
+        }catch(final FOPException | JAXBException | IOException | TransformerException exc){
+            throw new IBBusinessException(PDF_GENERATION_ERROR, exc.getCause());
+        }
+    }
+
+    private boolean isValid(PDFDigitalMenu pdfDigitalMenu) {
+        return pdfDigitalMenu != null && pdfDigitalMenu.getFlight() != null
+                && !CollectionUtils.isEmpty(pdfDigitalMenu.getCabins());
+    }
+
+    private ByteArrayOutputStream generatePdfRaw(final PDFDigitalMenu pdfDigitalMenu, final DigitalMenuPdfType type)
+            throws JAXBException, FOPException, IOException, TransformerException{
+        FopResult fopResult = rawDigitalMenu(pdfDigitalMenu, type);
+        int pageCount = fopResult.getPageCount();
+        int numRetries = NumberUtils.INTEGER_ZERO;
+        while(pageCount > NumberUtils.INTEGER_ONE){
+            final PDFDigitalMenu pdfDigitalMenuRegenerate = ruleEngineRegenerate.apply(pdfDigitalMenu,
+                    new DigitalMenuPdfRuleCriterial(type));
+            fopResult = rawDigitalMenu(pdfDigitalMenuRegenerate, type);
+            pageCount = fopResult.getPageCount();
+            numRetries++;
+            if(numRetries >= MAX_RETRIES_GENERATE){
+                throw new IBBusinessException(PDF_GENERATION_ERROR);
+            }
+        }
+        return fopResult.getOutputStream();
+    }
+
+    private FopResult rawDigitalMenu(final PDFDigitalMenu pdfDigitalMenu, final DigitalMenuPdfType type)
+            throws JAXBException, FOPException, IOException, TransformerException{
+        LOGGER.debug("{} - Ready to generate PDF file. Converting source data...",
+                ClientContextHolder.getContext().getRequestId());
+        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+        int pageCount = NumberUtils.INTEGER_ZERO;
+        LOGGER.debug("{} - Marshalling converted data...", ClientContextHolder.getContext().getRequestId());
+        LOGGER.debug("- Marshall Input parameter:{}", pdfDigitalMenu);
+        final InputStream input = marshall(pdfDigitalMenu);
+        LOGGER.debug("{} - Applying XSLT transformation to generate PDF file...",
+                ClientContextHolder.getContext().getRequestId());
+        final StreamSource streamSource = new StreamSource(input);
+        try(final OutputStream buffer = new BufferedOutputStream(os)){
+            final FOUserAgent userAgent = factory.newFOUserAgent();
+            final Fop fop = factory.newFop(MIME_PDF, userAgent, buffer);
+            final Transformer transformer = templateResolver.resolveTemplate(type).newTransformer();
+            final Result res = new SAXResult(fop.getDefaultHandler());
+            transformer.transform(streamSource, res);
+            pageCount = fop.getResults().getPageCount();
+        }finally{
+            os.close();
+        }
+        LOGGER.debug("{} - Returning generated file.", ClientContextHolder.getContext().getRequestId());
+        return new FopResult(os, pageCount);
+    }
+
+    private InputStream marshall(final PDFDigitalMenu pdfDigitalMenu) throws JAXBException{
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        Marshaller marshaller = null;
+        marshaller = jaxbContext.createMarshaller();
+        marshaller.setProperty("com.sun.xml.bind.characterEscapeHandler", new NoEscapeHandler());
+        marshaller.marshal(pdfDigitalMenu, output);
+        return new ByteArrayInputStream(output.toByteArray());
+    }
+
+    private String getFileName(final PDFDigitalMenu pdfDigitalMenu){
+        return String.format(PDF_FILENAME_FORMAT, pdfDigitalMenu.getFlight().getCompany(),
+                getFlightNumber(pdfDigitalMenu.getFlight().getNumber()),
+                transformLocalDateTimeToString(pdfDigitalMenu.getFlight().getDepartureDate().getDate()));
+    }
+
+    private String transformLocalDateTimeToString(final LocalDate date){
+        if(date != null){
+            try{
+                final DateTimeFormatter fmt = DateTimeFormat.forPattern(DATE_FORMAT);
+                return fmt.print(date);
+            }catch(final IllegalArgumentException e){
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String getFlightNumber(final String flightNumber){
+        String formattedFlightNumber = flightNumber;
+        if(flightNumber.length() < 4){
+            formattedFlightNumber = String.format("%04d", Integer.valueOf(flightNumber));
+        }
+        return formattedFlightNumber;
+    }
+
+    private PDFDigitalMenu transformPDFDigitalMenu(final PDFDigitalMenu pdfDigitalMenu, final DigitalMenuPdfType type){
+        return ruleEngine.apply(pdfDigitalMenu, new DigitalMenuPdfRuleCriterial(type));
+    }
+
+    /**
+     * Custom character escape handler for avoiding escape characters while marshalling/unmarshalling
+     *
+     */
+    public static final class NoEscapeHandler implements CharacterEscapeHandler{
+
+        @Override
+        public void escape(final char[] ch, final int start, final int length, final boolean isAttVal, final Writer out)
+                throws IOException{
+            out.write(ch);
+        }
+    }
+
+    protected class FopResult{
+
+        private final ByteArrayOutputStream outputStream;
+        private final int pageCount;
+
+        public FopResult(final ByteArrayOutputStream outputStream, final int pageCount){
+            this.outputStream = outputStream;
+            this.pageCount = pageCount;
+        }
+
+        public ByteArrayOutputStream getOutputStream(){
+            return outputStream;
+        }
+
+        public int getPageCount(){
+            return pageCount;
+        }
+
+    }
+
+}
 
 
-Aquí tienes las consultas SQL para cada uno de los requerimientos:
-
-Listar los jugadores y la cantidad de partidos que jugaron:
-sql
-Copy code
-SELECT 
-    p.player_id,
-    p.name,
-    p.last_name,
-    COUNT(pbm.match_id) AS cantidad_partidos
-FROM 
-    players p
-LEFT JOIN 
-    player_by_team_by_match pbm ON p.player_id = pbm.player_id
-GROUP BY 
-    p.player_id, p.name, p.last_name;
-En esta consulta, utilizamos un LEFT JOIN entre la tabla de jugadores (players) y la tabla de relación entre jugador y partido (player_by_team_by_match). Luego, contamos la cantidad de partidos por jugador utilizando la función de agregación COUNT, y agrupamos por las columnas relevantes del jugador.
-
-Elaborar un ranking con los jugadores que más puntos hicieron en el torneo:
-sql
-Copy code
-SELECT 
-    p.player_id,
-    p.name,
-    p.last_name,
-    SUM(pbm.points) AS total_puntos
-FROM 
-    players p
-INNER JOIN 
-    player_by_team_by_match pbm ON p.player_id = pbm.player_id
-GROUP BY 
-    p.player_id, p.name, p.last_name
-ORDER BY 
-    total_puntos DESC;
 
 
-Elaborar la tabla de posiciones por equipos:
-sql
-Copy code
-SELECT 
-    t.team_id,
-    t.team_name,
-    COUNT(pbm.match_id) AS cantidad_partidos,
-    SUM(pbm.points) AS total_puntos
-FROM 
-    teams t
-LEFT JOIN 
-    matches m ON t.team_id = m.local_team_id OR t.team_id = m.visitor_team_id
-LEFT JOIN 
-    player_by_team_by_match pbm ON t.team_id = pbm.team_id AND m.match_id = pbm.match_id
-GROUP BY 
-    t.team_id, t.team_name
-ORDER BY 
-    total_puntos DESC, cantidad_partidos DESC;
+ public <T, K> K convert(T object) {
+        if (object == null) {
+            return null;
+        } else {
+            Converter<T, K> converter = null;
+            if (object instanceof List) {
+                converter = (Converter)this.registeredListConverters.get(this.getGenericClass(object));
+                if (((List)object).isEmpty()) {
+                    return new ArrayList();
+                }
+            } else {
+                converter = (Converter)this.registeredConverters.get(object.getClass());
+            }
 
+            if (converter == null) {
+                this.handleNullConverter(object);
+            }
+
+            try {
+                return converter.convert(object);
+            } catch (ClassCastException var4) {
+                LOGGER.warn("{}. The converter for {} is not properly registered.", var4.getMessage(), object.getClass());
+                throw new FrameworkException(ConverterErrorCodes.CONVERTER_NOT_PROPERLY_REGISTERED, var4);
+            }
+        }
+    }
