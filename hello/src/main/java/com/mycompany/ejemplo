@@ -148,3 +148,40 @@ public class DigitalMenuObtainImagesInBase64RuleTest{
                 .build();
         return PDFDigitalMenu.builder().withCabins(Collections.singletonList(cabin)).build();
     }
+
+
+
+
+
+
+
+
+ @Test
+    public void givenPDFDigitalMenuObjectShouldTransformAddingCategoryImagesInBase64(){
+        final PDFDigitalMenu pdf = buildPDFDigitalMenuObject(desktopResolution);
+
+        final String categoryImage = "categoryImage";
+        mockObtainImageService(categoryImage);
+
+        final PDFDigitalMenu pdfDigitalMenuWithImagesInBase64 = rule.apply(pdf, deskTopCriteria);
+
+        final PDFSimpleElement expectedCategoryImageElement = createExpectedCategoryImageElement("/categoryImagePath");
+
+        assertCategoryImageElement(pdfDigitalMenuWithImagesInBase64, expectedCategoryImageElement);
+
+    }
+
+    @Test
+    public void givenPDFDigitalMenuObjectShouldTransformAddingMenuImagesInBase64(){
+        final PDFDigitalMenu pdf = buildPDFDigitalMenuObject(desktopResolution);
+
+        final String menuImage = "menuImage";
+        mockObtainImageService(menuImage);
+
+        final PDFDigitalMenu pdfDigitalMenuWithImagesInBase64 = rule.apply(pdf, deskTopCriteria);
+
+        final PDFSimpleElement expectedMenuImageElement = createExpectedCategoryImageElement("/menuImagePath");
+
+        assertMenuImageElement(pdfDigitalMenuWithImagesInBase64, expectedMenuImageElement);
+
+    }
