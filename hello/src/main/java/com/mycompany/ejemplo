@@ -1,33 +1,150 @@
-private final GenericConverter converter;
-    private final FopFactory factory;
-    private final DigitalMenuResourceResolver templateResolver;
-    private final JAXBContext jaxbContext;
-    private final RuleEngine ruleEngine;
-    private final RuleEngine ruleEngineRegenerate;
+package com.ib.captwo.sse.favl.coreservice.rules;
 
-    //CGLIB constructor
-    public DigitalMenuPDFBinaryGenerator(){
-        super();
-        this.converter = null;
-        this.factory = null;
-        this.templateResolver = null;
-        this.jaxbContext = null;
-        this.ruleEngine = null;
-        this.ruleEngineRegenerate = null;
+import com.ib.captwo.ibdp.favl.coreservice.DigitalMenuObtainImagesService;
+import com.ib.captwo.sse.favl.coreservice.digitalmenu.DigitalMenuPdfType;
+import com.ib.captwo.sse.favl.coreservice.jaxb.domain.*;
+import com.ib.captwo.sse.favl.coreservice.jaxb.domain.PDFDynamicElement.PDFTag;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import java.util.Collections;
+
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class DigitalMenuObtainImagesInBase64RuleTest{
+
+    private static final String desktopResolution = "1024";
+    private static final String mobileResolution = "480";
+
+    private final DigitalMenuObtainImagesService digitalMenuObtainImagesService = mock(
+            DigitalMenuObtainImagesService.class);
+
+    final DigitalMenuObtainImagesInBase64Rule rule = new DigitalMenuObtainImagesInBase64Rule(
+            digitalMenuObtainImagesService, desktopResolution, mobileResolution, true);
+
+    final DigitalMenuPdfRuleCriterial deskTopCriteria = new DigitalMenuPdfRuleCriterial(DigitalMenuPdfType.DESKTOP);
+    final DigitalMenuPdfRuleCriterial mobileCriteria = new DigitalMenuPdfRuleCriterial(DigitalMenuPdfType.MOBILE);
+
+    @Test
+    public void isSupportedTestForDeskTop(){
+        assertTrue(rule.isSupported(mock(PDFDigitalMenu.class), deskTopCriteria));
+        assertFalse(rule.isSupported(mock(PDFSimpleElement.class), null));
+        assertFalse(rule.isSupported(mock(PDFDigitalMenu.class), null));
     }
 
-    @Autowired
-    public DigitalMenuPDFBinaryGenerator(@Qualifier("ToPDFConverters")
-    final GenericConverter converter, final FopFactory factory, final DigitalMenuResourceResolver templateResolver,
-            @Qualifier("digital-menu-marshaller")
-            final JAXBContext context, @Qualifier("PDFRuleEngine")
-            final RuleEngine ruleEngine, @Qualifier("PDFRuleEngineRegenerate")
-            final RuleEngine ruleEngineRegenerate){
-        super();
-        this.converter = converter;
-        this.factory = factory;
-        this.jaxbContext = context;
-        this.templateResolver = templateResolver;
-        this.ruleEngine = ruleEngine;
-        this.ruleEngineRegenerate = ruleEngineRegenerate;
+    @Test
+    public void isSupportedTestForMobile(){
+        assertTrue(rule.isSupported(mock(PDFDigitalMenu.class), mobileCriteria));
+        assertFalse(rule.isSupported(mock(PDFSimpleElement.class), null));
+        assertFalse(rule.isSupported(mock(PDFDigitalMenu.class), null));
+    }
+
+    @Test
+    public void isNotSupportedTestWhenDisabledToggle(){
+        final DigitalMenuObtainImagesInBase64Rule rule = new DigitalMenuObtainImagesInBase64Rule(
+                digitalMenuObtainImagesService, desktopResolution, mobileResolution, false);
+        assertFalse(rule.isSupported(mock(PDFDigitalMenu.class), deskTopCriteria));
+        assertFalse(rule.isSupported(mock(PDFDigitalMenu.class), mobileCriteria));
+    }
+
+    @Test
+    public void givenPDFDigitalMenuObjectShouldTransformAddingCategoryImagesInBase64(){
+
+        final PDFDigitalMenu pdf = buildPDFDigitalMenuObject(desktopResolution);
+
+        final String categoryImage = "categoryImage";
+
+        when(digitalMenuObtainImagesService.obtainImage(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(categoryImage);
+
+        final PDFDigitalMenu pdfDigitalMenuWithImagesInBase64 = rule.apply(pdf, deskTopCriteria);
+
+        final PDFSimpleElement expectedCategoryImageElement = new PDFSimpleElement(PDFTag.IMAGE, "/categoryImagePath");
+
+        assertCategoryImageElement(pdfDigitalMenuWithImagesInBase64, expectedCategoryImageElement);
+
+    }
+
+    @Test
+    public void givenPDFDigitalMenuObjectShouldTransformAddingMenuImagesInBase64(){
+
+        final PDFDigitalMenu pdf = buildPDFDigitalMenuObject(desktopResolution);
+
+        final String menuImage = "menuImage";
+        when(digitalMenuObtainImagesService.obtainImage(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(menuImage);
+
+        final PDFDigitalMenu pdfDigitalMenuWithImagesInBase64 = rule.apply(pdf, deskTopCriteria);
+
+        final PDFSimpleElement expectedMenuImageElement = new PDFSimpleElement(PDFTag.IMAGE, "/menuImagePath");
+
+        assertMenuImageElement(pdfDigitalMenuWithImagesInBase64, expectedMenuImageElement);
+
+    }
+
+    @Test
+    public void givenPDFDigitalMenuObjectWithoutImagesShouldReturnSameObject(){
+
+        final PDFDigitalMenu pdf = buildPDFDigitalMenuObjectWithoutImages();
+
+        final String categoryImage = "categoryImage";
+        when(digitalMenuObtainImagesService.obtainImage(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(categoryImage);
+
+        final DigitalMenuPdfRuleCriterial criteria = mock(DigitalMenuPdfRuleCriterial.class);
+        final PDFDigitalMenu pdfDigitalMenuWithImagesInBase64 = rule.apply(pdf, criteria);
+
+        assertEquals(pdfDigitalMenuWithImagesInBase64, pdf);
+    }
+
+    @Test
+    public void givenPDFDigitalMenuObjectWhenWrongResolutionShouldReturnSameObject(){
+        final PDFDigitalMenu pdf = buildPDFDigitalMenuObjectWithoutImages();
+
+        final String categoryImage = "categoryImage";
+
+        when(digitalMenuObtainImagesService.obtainImage(Mockito.anyString(), Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(categoryImage);
+
+        final PDFDigitalMenu pdfDigitalMenuWithImagesInBase64 = rule.apply(pdf, deskTopCriteria);
+
+        assertEquals(pdfDigitalMenuWithImagesInBase64, pdf);
+    }
+
+    private void assertCategoryImageElement(PDFDigitalMenu pdfDigitalMenu, PDFSimpleElement expectedElement) {
+        PDFRulesTestUtils.assertPDFElements(pdfDigitalMenu.getCabins().get(0).getCategories().get(0)
+                .getElements().get(0).getValue(), expectedElement);
+    }
+
+    private void assertMenuImageElement(PDFDigitalMenu pdfDigitalMenu, PDFSimpleElement expectedElement) {
+        PDFRulesTestUtils.assertPDFElements(pdfDigitalMenu.getCabins().get(0).getCategories().get(0)
+                .getMenu().get(0).getItems().get(0).getElements().get(0).getValue(), expectedElement);
+    }
+
+    private PDFDigitalMenu buildPDFDigitalMenuObject(final String resolution){
+        PDFDigitalMenuImage menuImage = PDFDigitalMenuImage.builder().withImagePath("/menuImagePath")
+                .withResolution(resolution).build();
+        PDFDigitalMenuItem item = PDFDigitalMenuItem.builder().withImages(Collections.singletonList(menuImage)).build();
+        PDFDigitalMenuMenuItem menu = PDFDigitalMenuMenuItem.builder().withItems(Collections.singletonList(item))
+                .build();
+        PDFDigitalMenuImage categoryImage = PDFDigitalMenuImage.builder().withImagePath("/categoryImagePath")
+                .withResolution(resolution).build();
+        PDFDigitalMenuCategory category = PDFDigitalMenuCategory.builder()
+                .withImages(Collections.singletonList(categoryImage)).withMenu(Collections.singletonList(menu)).build();
+        PDFDigitalMenuCabin cabin = PDFDigitalMenuCabin.builder().withCategories(Collections.singletonList(category))
+                .build();
+        return PDFDigitalMenu.builder().withCabins(Collections.singletonList(cabin)).build();
+    }
+
+    private PDFDigitalMenu buildPDFDigitalMenuObjectWithoutImages(){
+        PDFDigitalMenuItem item = PDFDigitalMenuItem.builder().build();
+        PDFDigitalMenuMenuItem menu = PDFDigitalMenuMenuItem.builder().withItems(Collections.singletonList(item))
+                .build();
+        PDFDigitalMenuCategory category = PDFDigitalMenuCategory.builder().withMenu(Collections.singletonList(menu))
+                .build();
+        PDFDigitalMenuCabin cabin = PDFDigitalMenuCabin.builder().withCategories(Collections.singletonList(category))
+                .build();
+        return PDFDigitalMenu.builder().withCabins(Collections.singletonList(cabin)).build();
     }
