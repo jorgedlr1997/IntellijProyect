@@ -1,20 +1,13 @@
 package com.ib.captwo.sse.favl.rs.v01;
 
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.doReturn;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-
+import com.ba.captwo.framework.rs.generic.CAPTWORestServiceClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ib.captwo.datalake.favl.coreservice.domain.*;
+import com.ib.captwo.sse.favl.datalake.api.domain.FlightStatusWebResponse;
+import com.ib.captwo.sse.favl.datalake.coreservice.FavlDataLakeServiceImpl;
+import com.ib.checkin.ancillaries.repository.impl.TestUtils;
+import com.ib.framework.context.ClientContextHolder;
+import com.ib.framework.cxf.rs.interceptor.LocaleResolverInInterceptor;
 import org.apache.commons.io.IOUtils;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.transport.local.LocalConduit;
@@ -30,41 +23,17 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.ba.captwo.framework.rs.generic.CAPTWORestServiceClient;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ib.captwo.datalake.favl.coreservice.domain.Airline;
-import com.ib.captwo.datalake.favl.coreservice.domain.AirlineRequest;
-import com.ib.captwo.datalake.favl.coreservice.domain.Airport;
-import com.ib.captwo.datalake.favl.coreservice.domain.AirportRequest;
-import com.ib.captwo.datalake.favl.coreservice.domain.AirportResources;
-import com.ib.captwo.datalake.favl.coreservice.domain.Appendix;
-import com.ib.captwo.datalake.favl.coreservice.domain.Codeshares;
-import com.ib.captwo.datalake.favl.coreservice.domain.DataLakeDate;
-import com.ib.captwo.datalake.favl.coreservice.domain.DataLakeRequest;
-import com.ib.captwo.datalake.favl.coreservice.domain.Delays;
-import com.ib.captwo.datalake.favl.coreservice.domain.Equipment;
-import com.ib.captwo.datalake.favl.coreservice.domain.ExtendedOptions;
-import com.ib.captwo.datalake.favl.coreservice.domain.Flight;
-import com.ib.captwo.datalake.favl.coreservice.domain.FlightDurations;
-import com.ib.captwo.datalake.favl.coreservice.domain.FlightEquipment;
-import com.ib.captwo.datalake.favl.coreservice.domain.FlightStatusRequest;
-import com.ib.captwo.datalake.favl.coreservice.domain.FlightStatusResponse;
-import com.ib.captwo.datalake.favl.coreservice.domain.FlightStatuses;
-import com.ib.captwo.datalake.favl.coreservice.domain.FsDate;
-import com.ib.captwo.datalake.favl.coreservice.domain.FsStatus;
-import com.ib.captwo.datalake.favl.coreservice.domain.HourOfDay;
-import com.ib.captwo.datalake.favl.coreservice.domain.NonstopOnly;
-import com.ib.captwo.datalake.favl.coreservice.domain.NumHours;
-import com.ib.captwo.datalake.favl.coreservice.domain.OperationalTimes;
-import com.ib.captwo.datalake.favl.coreservice.domain.Schedule;
-import com.ib.captwo.datalake.favl.coreservice.domain.Utc;
-import com.ib.captwo.sse.favl.datalake.api.domain.FlightStatusWebResponse;
-import com.ib.captwo.sse.favl.datalake.coreservice.FavlDataLakeServiceImpl;
-import com.ib.checkin.ancillaries.repository.impl.TestUtils;
-import com.ib.framework.context.ClientContextHolder;
-import com.ib.framework.cxf.rs.interceptor.LocaleResolverInInterceptor;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.doReturn;
 
 @RunWith(value = SpringJUnit4ClassRunner.class)
 @ContextConfiguration({"classpath:conf/spring/IntegrationTestsAppContext.xml"})
@@ -79,10 +48,16 @@ public class FavlDataLakeImplResourceIntegrationTest{
      * The local transport URI
      */
     private final static String ENDPOINT_ADDRESS = "local://sse-favl/v1";
-
     private static final String LOCALE_HEADER = "es-ES";
+    private static final String FLIGHT_STATUS_RESPONSE_JSON = "/json/flightStatusResponse.json";
+    private static final String SCHEDULED_FLIGHTS_BY_AIRPORT_RESPONSE_JSON  = "/json/scheduledFlightsByAirportResponse.json";
+    private static final String SCHEDULED_FLIGHTS_BY_ROUTE_RESPONSE_JSON  = "/json/scheduledFlightsByRouteResponse.json";
 
     private CAPTWORestServiceClient client;
+    private FlightStatusWebResponse expected;
+    private FlightStatusResponse flightStatusResponse;
+    private Response response;
+    private FlightStatusWebResponse result;
 
     @Autowired
     @Qualifier("customObjectMapper")
@@ -102,61 +77,69 @@ public class FavlDataLakeImplResourceIntegrationTest{
 
     @Test
     public void givenAValidRequestForFlightStatusThenShouldReturnAValidFlightStatusResponse()
-            throws JsonParseException, JsonMappingException, IOException{
-        final String jsonResponse = IOUtils.toString(FavlDataLakeImplResourceIntegrationTest.class
-                .getResource("/json/flightStatusResponse.json").openStream(), StandardCharsets.UTF_8);
-        final FlightStatusWebResponse expected = mapper.readValue(jsonResponse, FlightStatusWebResponse.class);
-        final FlightStatusResponse flightStatusResponse = buildFlightStatusResponse();
+            throws IOException{
+        expected = getFlightStatusWebResponse(FLIGHT_STATUS_RESPONSE_JSON);
+        flightStatusResponse = buildFlightStatusResponse();
         doReturn(flightStatusResponse).when(service).getFlightStatus(Mockito.any(DataLakeRequest.class));
-        final Response response = client.path("/datalake/flight/status/IB/448/dep/2021/07/16")
-                .header(LocaleResolverInInterceptor.ACCEPT_LANGUAGE_HEADER, LOCALE_HEADER)
-                .accept(MediaType.APPLICATION_JSON).type(MediaType.APPLICATION_JSON).get();
-        assertThat(response.getStatus(), is(Status.OK.getStatusCode()));
-        final String webResponse = (String) response.getEntity();
-        final FlightStatusWebResponse result = mapper.readValue(webResponse, FlightStatusWebResponse.class);
-        assertThat(result.getRequest(), is(expected.getRequest()));
-        assertThat(result.getAppendix(), notNullValue());
-        assertNotEquals(result.getFlightStatuses(), emptyArray());
+        response = getResponse("/datalake/flight/status/IB/448/dep/2021/07/16");
+        assertThatStatus(response);
+        result = getResult(response);
+        assertResponse(result, expected);
     }
 
     @Test
     public void givenAValidRequestForScheduledFlightsByAirportThenShouldReturnAValidFlightStatusResponse()
-            throws JsonParseException, JsonMappingException, IOException{
-        final String jsonResponse = IOUtils.toString(
-                FavlDataLakeImplResourceIntegrationTest.class
-                        .getResource("/json/scheduledFlightsByAirportResponse.json").openStream(),
-                StandardCharsets.UTF_8);
-        final FlightStatusWebResponse expected = mapper.readValue(jsonResponse, FlightStatusWebResponse.class);
-        final FlightStatusResponse flightStatusResponse = buildScheduledFlightsByAirportResponse();
+            throws IOException{
+        expected = getFlightStatusWebResponse(SCHEDULED_FLIGHTS_BY_AIRPORT_RESPONSE_JSON);
+        flightStatusResponse = buildScheduledFlightsByAirportResponse();
         doReturn(flightStatusResponse).when(service).getScheduledFlightsByAirport(Mockito.any(DataLakeRequest.class));
-        final Response response = client.path("/datalake/airport/status/MAD/dep/2021/07/16/13")
-                .header(LocaleResolverInInterceptor.ACCEPT_LANGUAGE_HEADER, LOCALE_HEADER)
-                .accept(MediaType.APPLICATION_JSON).type(MediaType.APPLICATION_JSON).get();
+        response = getResponse("/datalake/airport/status/MAD/dep/2021/07/16/13");
+        assertThatStatus(response);
+        result = getResult(response);
+        assertResponse(result, expected);
+    }
+
+    @Test
+    public void givenAValidRequestForScheduledFlightsByRouteThenShouldReturnAValidFlightStatusResponse()
+            throws IOException{
+        expected = getFlightStatusWebResponse(SCHEDULED_FLIGHTS_BY_ROUTE_RESPONSE_JSON);
+        flightStatusResponse = buildScheduledFlightsByRouteResponse();
+        doReturn(flightStatusResponse).when(service).getScheduledFlightsByRoute(Mockito.any(DataLakeRequest.class));
+        response = getResponse("/datalake/route/status/MAD/BCN/dep/2021/07/16");
+        assertThatStatus(response);
+        result = getResult(response);
+        assertResponse(result, expected);
+    }
+
+    private void assertThatStatus(Response response) {
         assertThat(response.getStatus(), is(Status.OK.getStatusCode()));
-        final String webResponse = (String) response.getEntity();
-        final FlightStatusWebResponse result = mapper.readValue(webResponse, FlightStatusWebResponse.class);
+    }
+
+    private FlightStatusWebResponse getFlightStatusWebResponse(String pathName) throws IOException {
+        final String jsonResponse = getJsonResponse(pathName);
+        return mapper.readValue(jsonResponse, FlightStatusWebResponse.class);
+    }
+
+    private void assertResponse(FlightStatusWebResponse result, FlightStatusWebResponse expected) {
         assertThat(result.getRequest(), is(expected.getRequest()));
         assertThat(result.getAppendix(), notNullValue());
         assertNotEquals(result.getFlightStatuses(), emptyArray());
     }
 
-    @Test
-    public void givenAValidRequestForScheduledFlightsByRouteThenShouldReturnAValidFlightStatusResponse()
-            throws JsonParseException, JsonMappingException, IOException{
-        final String jsonResponse = IOUtils.toString(FavlDataLakeImplResourceIntegrationTest.class
-                .getResource("/json/scheduledFlightsByRouteResponse.json").openStream(), StandardCharsets.UTF_8);
-        final FlightStatusWebResponse expected = mapper.readValue(jsonResponse, FlightStatusWebResponse.class);
-        final FlightStatusResponse flightStatusResponse = buildScheduledFlightsByRouteResponse();
-        doReturn(flightStatusResponse).when(service).getScheduledFlightsByRoute(Mockito.any(DataLakeRequest.class));
-        final Response response = client.path("/datalake/route/status/MAD/BCN/dep/2021/07/16")
+    private String getJsonResponse(String pathName) throws IOException {
+        return IOUtils.toString(FavlDataLakeImplResourceIntegrationTest.class
+                .getResource(pathName).openStream(), StandardCharsets.UTF_8);
+    }
+
+    private FlightStatusWebResponse getResult (Response response) throws IOException {
+        final String webResponse = (String) response.getEntity();
+        return mapper.readValue(webResponse, FlightStatusWebResponse.class);
+    }
+
+    private Response getResponse(String path) {
+        return client.path(path)
                 .header(LocaleResolverInInterceptor.ACCEPT_LANGUAGE_HEADER, LOCALE_HEADER)
                 .accept(MediaType.APPLICATION_JSON).type(MediaType.APPLICATION_JSON).get();
-        assertThat(response.getStatus(), is(Status.OK.getStatusCode()));
-        final String webResponse = (String) response.getEntity();
-        final FlightStatusWebResponse result = mapper.readValue(webResponse, FlightStatusWebResponse.class);
-        assertThat(result.getRequest(), is(expected.getRequest()));
-        assertThat(result.getAppendix(), notNullValue());
-        assertNotEquals(result.getFlightStatuses(), emptyArray());
     }
 
     private FlightStatusResponse buildFlightStatusResponse(){
@@ -233,3 +216,4 @@ public class FavlDataLakeImplResourceIntegrationTest{
         return flightStatusResponse;
     }
 }
+
