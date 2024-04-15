@@ -1,37 +1,47 @@
-private FlightStatusResponse buildFlightStatusResponse(){
-    return buildFlightStatusResponse("448", "MAD", "2021-06-25");
+@Test
+public void givenAValidRequestForFlightStatusThenShouldReturnAValidFlightStatusResponse()
+        throws IOException{
+    testFlightStatus("/datalake/flight/status/IB/448/dep/2021/07/16", FLIGHT_STATUS_RESPONSE_JSON, new FlightStatusServiceMethod() {
+        @Override
+        public FlightStatusResponse apply(DataLakeRequest request) {
+            return service.getFlightStatus(request);
+        }
+    });
 }
 
-private FlightStatusResponse buildScheduledFlightsByAirportResponse(){
-    return buildFlightStatusResponse("448", "MAD", "2021-07-03");
+@Test
+public void givenAValidRequestForScheduledFlightsByAirportThenShouldReturnAValidFlightStatusResponse()
+        throws IOException{
+    testFlightStatus("/datalake/airport/status/MAD/dep/2021/07/16/13", SCHEDULED_FLIGHTS_BY_AIRPORT_RESPONSE_JSON, new FlightStatusServiceMethod() {
+        @Override
+        public FlightStatusResponse apply(DataLakeRequest request) {
+            return service.getScheduledFlightsByAirport(request);
+        }
+    });
 }
 
-private FlightStatusResponse buildScheduledFlightsByRouteResponse(){
-    return buildFlightStatusResponse("448", "MAD", "2021-07-03");
+@Test
+public void givenAValidRequestForScheduledFlightsByRouteThenShouldReturnAValidFlightStatusResponse()
+        throws IOException{
+    testFlightStatus("/datalake/route/status/MAD/BCN/dep/2021/07/16", SCHEDULED_FLIGHTS_BY_ROUTE_RESPONSE_JSON, new FlightStatusServiceMethod() {
+        @Override
+        public FlightStatusResponse apply(DataLakeRequest request) {
+            return service.getScheduledFlightsByRoute(request);
+        }
+    });
 }
 
-private FlightStatusResponse buildFlightStatusResponse(String flightNumber, String departureAirportCode, String departureDate) {
-    AirlineRequest airlineRequest = new AirlineRequest("IB", "IB");
-    Flight flight = new Flight(flightNumber, flightNumber);
-    Utc utc = new Utc(false);
-    NonstopOnly nonstopOnly = new NonstopOnly(false);
-    DataLakeDate date = new DataLakeDate(departureDate.substring(0, 4), departureDate.substring(5, 7), departureDate.substring(8), departureDate);
-    ExtendedOptions extendedOptions = new ExtendedOptions("languageCode:es", "languageCode:es");
-    String requestUrl = String.format("https://api.flightstats.com/flex/flightstatus/rest/v2/json/flight/status/IB/%s/dep/%s?extendedOptions=languageCode%%3Aes", flightNumber, departureDate);
-    FlightStatusRequest request = new FlightStatusRequest(airlineRequest, flight, utc, requestUrl, nonstopOnly, date, extendedOptions, null, null, null, null, null);
-    Appendix appendix = buildAppendix();
-    FlightStatuses flightStatuses = new FlightStatuses("1063558240", "IB", flightNumber, departureAirportCode, "BIO", null,
-            Mockito.mock(FsDate.class), Mockito.mock(FsDate.class), FsStatus.LANDED, Mockito.mock(Schedule.class),
-            Mockito.mock(OperationalTimes.class), Arrays.asList(Mockito.mock(Codeshares.class)),
-            Mockito.mock(Delays.class), Mockito.mock(FlightDurations.class), Mockito.mock(AirportResources.class),
-            Mockito.mock(FlightEquipment.class), null);
-    return new FlightStatusResponse(request, appendix, Arrays.asList(flightStatuses));
+private void testFlightStatus(String path, String jsonResponse, FlightStatusServiceMethod serviceMethod)
+        throws IOException {
+    expected = getFlightStatusWebResponse(jsonResponse);
+    flightStatusResponse = buildFlightStatusResponse();
+    doReturn(flightStatusResponse).when(service).getFlightStatus(Mockito.any(DataLakeRequest.class));
+    response = getResponse(path);
+    assertThatStatus(response);
+    result = getResult(response);
+    assertResponse(result, expected);
 }
 
-private Appendix buildAppendix() {
-    Airline airline = Mockito.mock(Airline.class);
-    Airport airport = Mockito.mock(Airport.class);
-    Equipment equipment = Mockito.mock(Equipment.class);
-    return new Appendix(Arrays.asList(airline), Arrays.asList(airport), Arrays.asList(equipment));
+interface FlightStatusServiceMethod {
+    FlightStatusResponse apply(DataLakeRequest request);
 }
-
