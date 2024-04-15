@@ -1,52 +1,8 @@
-package com.ib.captwo.sse.favl.rs.v01;
-
-import com.ba.captwo.framework.rs.generic.CAPTWORestServiceClient;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ib.captwo.datalake.favl.coreservice.domain.*;
-import com.ib.captwo.sse.favl.datalake.api.domain.FlightStatusWebResponse;
-import com.ib.captwo.sse.favl.datalake.coreservice.FavlDataLakeServiceImpl;
-import com.ib.checkin.ancillaries.repository.impl.TestUtils;
-import com.ib.framework.context.ClientContextHolder;
-import com.ib.framework.cxf.rs.interceptor.LocaleResolverInInterceptor;
-import org.apache.commons.io.IOUtils;
-import org.apache.cxf.jaxrs.client.WebClient;
-import org.apache.cxf.transport.local.LocalConduit;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.doReturn;
-
-@RunWith(value = SpringJUnit4ClassRunner.class)
-@ContextConfiguration({"classpath:conf/spring/IntegrationTestsAppContext.xml"})
-@ActiveProfiles(profiles = {"integration-tests", "docker"})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-public class FavlDataLakeImplResourceIntegrationTest{
+public class FavlDataLakeImplResourceIntegrationTest {
 
     @Autowired
     private FavlDataLakeServiceImpl service;
 
-    /**
-     * The local transport URI
-     */
     private final static String ENDPOINT_ADDRESS = "local://sse-favl/v1";
     private static final String LOCALE_HEADER = "es-ES";
     private static final String FLIGHT_STATUS_RESPONSE_JSON = "/json/flightStatusResponse.json";
@@ -64,23 +20,22 @@ public class FavlDataLakeImplResourceIntegrationTest{
     private ObjectMapper mapper;
 
     @Before
-    public void setUp() throws Exception{
+    public void setUp() throws Exception {
         TestUtils.createContext();
         client = CAPTWORestServiceClient.getClient(ENDPOINT_ADDRESS);
         WebClient.getConfig(client.getWebClient()).getRequestContext().put(LocalConduit.DIRECT_DISPATCH, Boolean.TRUE);
     }
 
     @After
-    public void clearContext(){
+    public void clearContext() {
         ClientContextHolder.clearContext();
     }
 
     @Test
-    public void givenAValidRequestForFlightStatusThenShouldReturnAValidFlightStatusResponse()
-            throws IOException{
+    public void givenAValidRequestForFlightStatusThenShouldReturnAValidFlightStatusResponse() throws IOException {
         expected = getFlightStatusWebResponse(FLIGHT_STATUS_RESPONSE_JSON);
         flightStatusResponse = buildFlightStatusResponse();
-        doReturn(flightStatusResponse).when(service).getFlightStatus(Mockito.any(DataLakeRequest.class));
+        mockServiceResponse(service::getFlightStatus, flightStatusResponse);
         response = getResponse("/datalake/flight/status/IB/448/dep/2021/07/16");
         assertThatStatus(response);
         result = getResult(response);
@@ -88,11 +43,10 @@ public class FavlDataLakeImplResourceIntegrationTest{
     }
 
     @Test
-    public void givenAValidRequestForScheduledFlightsByAirportThenShouldReturnAValidFlightStatusResponse()
-            throws IOException{
+    public void givenAValidRequestForScheduledFlightsByAirportThenShouldReturnAValidFlightStatusResponse() throws IOException {
         expected = getFlightStatusWebResponse(SCHEDULED_FLIGHTS_BY_AIRPORT_RESPONSE_JSON);
         flightStatusResponse = buildScheduledFlightsByAirportResponse();
-        doReturn(flightStatusResponse).when(service).getScheduledFlightsByAirport(Mockito.any(DataLakeRequest.class));
+        mockServiceResponse(service::getScheduledFlightsByAirport, flightStatusResponse);
         response = getResponse("/datalake/airport/status/MAD/dep/2021/07/16/13");
         assertThatStatus(response);
         result = getResult(response);
@@ -100,11 +54,10 @@ public class FavlDataLakeImplResourceIntegrationTest{
     }
 
     @Test
-    public void givenAValidRequestForScheduledFlightsByRouteThenShouldReturnAValidFlightStatusResponse()
-            throws IOException{
+    public void givenAValidRequestForScheduledFlightsByRouteThenShouldReturnAValidFlightStatusResponse() throws IOException {
         expected = getFlightStatusWebResponse(SCHEDULED_FLIGHTS_BY_ROUTE_RESPONSE_JSON);
         flightStatusResponse = buildScheduledFlightsByRouteResponse();
-        doReturn(flightStatusResponse).when(service).getScheduledFlightsByRoute(Mockito.any(DataLakeRequest.class));
+        mockServiceResponse(service::getScheduledFlightsByRoute, flightStatusResponse);
         response = getResponse("/datalake/route/status/MAD/BCN/dep/2021/07/16");
         assertThatStatus(response);
         result = getResult(response);
@@ -131,7 +84,7 @@ public class FavlDataLakeImplResourceIntegrationTest{
                 .getResource(pathName).openStream(), StandardCharsets.UTF_8);
     }
 
-    private FlightStatusWebResponse getResult (Response response) throws IOException {
+    private FlightStatusWebResponse getResult(Response response) throws IOException {
         final String webResponse = (String) response.getEntity();
         return mapper.readValue(webResponse, FlightStatusWebResponse.class);
     }
@@ -142,16 +95,35 @@ public class FavlDataLakeImplResourceIntegrationTest{
                 .accept(MediaType.APPLICATION_JSON).type(MediaType.APPLICATION_JSON).get();
     }
 
-    private FlightStatusResponse buildFlightStatusResponse(){
+    private void mockServiceResponse(ServiceMethod method, FlightStatusResponse flightStatusResponse) {
+        doReturn(flightStatusResponse).when(service).method(Mockito.any(DataLakeRequest.class));
+    }
+
+    private FlightStatusResponse buildFlightStatusResponse() {
+        return buildResponse(null, null, null);
+    }
+
+    private FlightStatusResponse buildScheduledFlightsByAirportResponse() {
+        return buildResponse("MAD", null, null);
+    }
+
+    private FlightStatusResponse buildScheduledFlightsByRouteResponse() {
+        return buildResponse(null, "MAD", "BCN");
+    }
+
+    private FlightStatusResponse buildResponse(String departureAirport, String arrivalAirport, String route) {
         final AirlineRequest airlineRequest = new AirlineRequest("IB", "IB");
         final Flight flight = new Flight("448", "448");
         final Utc utc = new Utc(false);
         final NonstopOnly nonstopOnly = new NonstopOnly(false);
         final DataLakeDate date = new DataLakeDate("2021", "06", "25", "2021-06-25");
         final ExtendedOptions extendedOptions = new ExtendedOptions("languageCode:es", "languageCode:es");
-        FlightStatusRequest request = new FlightStatusRequest(airlineRequest, flight, utc,
+        final AirportRequest departureAirportRequest = departureAirport != null ? new AirportRequest(departureAirport, departureAirport) : null;
+        final AirportRequest arrivalAirportRequest = arrivalAirport != null ? new AirportRequest(arrivalAirport, arrivalAirport) : null;
+        final RouteRequest routeRequest = route != null ? new RouteRequest(departureAirport, arrivalAirport, departureAirport, route) : null;
+        final FlightStatusRequest request = new FlightStatusRequest(airlineRequest, flight, utc,
                 "https://api.flightstats.com/flex/flightstatus/rest/v2/json/flight/status/IB/448/dep/2021/06/25?extendedOptions=languageCode%3Aes",
-                nonstopOnly, date, extendedOptions, null, null, null, null, null);
+                nonstopOnly, date, extendedOptions, departureAirportRequest, arrivalAirportRequest, routeRequest, null, null);
         final Airline airline = Mockito.mock(Airline.class);
         final Airport airport = Mockito.mock(Airport.class);
         final Equipment equipment = Mockito.mock(Equipment.class);
@@ -161,59 +133,12 @@ public class FavlDataLakeImplResourceIntegrationTest{
                 Mockito.mock(OperationalTimes.class), Arrays.asList(Mockito.mock(Codeshares.class)),
                 Mockito.mock(Delays.class), Mockito.mock(FlightDurations.class), Mockito.mock(AirportResources.class),
                 Mockito.mock(FlightEquipment.class), null);
-        FlightStatusResponse flightStatusResponse = new FlightStatusResponse(request, appendix,
-                Arrays.asList(flightStatuses));
-        return flightStatusResponse;
+        return new FlightStatusResponse(request, appendix, Arrays.asList(flightStatuses));
     }
 
-    private FlightStatusResponse buildScheduledFlightsByAirportResponse(){
-        final HourOfDay hourOfDay = new HourOfDay(Integer.valueOf(13), Integer.valueOf(13));
-        final Utc utc = new Utc(false);
-        final NumHours numHours = new NumHours(Integer.valueOf(1));
-        final NonstopOnly nonstopOnly = new NonstopOnly(false);
-        final AirportRequest airportRequest = new AirportRequest("MAD", "MAD");
-        final DataLakeDate date = new DataLakeDate("2021", "07", "03", "2021-07-03");
-        final ExtendedOptions extendedOptions = new ExtendedOptions("languageCode:es", "languageCode:es");
-        FlightStatusRequest request = new FlightStatusRequest(null, null, utc,
-                "https://api.flightstats.com/flex/flightstatus/rest/v2/json/airport/status/MAD/dep/2021/07/03/13?extendedOptions=languageCode%3Aes",
-                nonstopOnly, date, extendedOptions, airportRequest, null, null, hourOfDay, numHours);
-        final Airline airline = Mockito.mock(Airline.class);
-        final Airport airport = Mockito.mock(Airport.class);
-        final Equipment equipment = Mockito.mock(Equipment.class);
-        Appendix appendix = new Appendix(Arrays.asList(airline), Arrays.asList(airport), Arrays.asList(equipment));
-        FlightStatuses flightStatuses = new FlightStatuses("1063558240", "IB", "448", "MAD", "BIO", null,
-                Mockito.mock(FsDate.class), Mockito.mock(FsDate.class), FsStatus.LANDED, Mockito.mock(Schedule.class),
-                Mockito.mock(OperationalTimes.class), Arrays.asList(Mockito.mock(Codeshares.class)),
-                Mockito.mock(Delays.class), Mockito.mock(FlightDurations.class), Mockito.mock(AirportResources.class),
-                Mockito.mock(FlightEquipment.class), null);
-        FlightStatusResponse flightStatusResponse = new FlightStatusResponse(request, appendix,
-                Arrays.asList(flightStatuses));
-        return flightStatusResponse;
-    }
-
-    private FlightStatusResponse buildScheduledFlightsByRouteResponse(){
-        final Utc utc = new Utc(false);
-        final NumHours numHours = new NumHours(Integer.valueOf(24));
-        final NonstopOnly nonstopOnly = new NonstopOnly(true);
-        final AirportRequest departureAirport = new AirportRequest("MAD", "MAD");
-        final AirportRequest arrivalAirport = new AirportRequest("BCN", "BCN");
-        final DataLakeDate date = new DataLakeDate("2021", "07", "03", "2021-07-03");
-        final ExtendedOptions extendedOptions = new ExtendedOptions("languageCode:es", "languageCode:es");
-        FlightStatusRequest request = new FlightStatusRequest(null, null, utc,
-                "https://api.flightstats.com/flex/flightstatus/rest/v2/json/route/status/MAD/BCN/dep/2021/07/03?extendedOptions=languageCode%3Aes",
-                nonstopOnly, date, extendedOptions, null, departureAirport, arrivalAirport, null, numHours);
-        final Airline airline = Mockito.mock(Airline.class);
-        final Airport airport = Mockito.mock(Airport.class);
-        final Equipment equipment = Mockito.mock(Equipment.class);
-        Appendix appendix = new Appendix(Arrays.asList(airline), Arrays.asList(airport), Arrays.asList(equipment));
-        FlightStatuses flightStatuses = new FlightStatuses("1063558240", "IB", "448", "MAD", "BIO", null,
-                Mockito.mock(FsDate.class), Mockito.mock(FsDate.class), FsStatus.LANDED, Mockito.mock(Schedule.class),
-                Mockito.mock(OperationalTimes.class), Arrays.asList(Mockito.mock(Codeshares.class)),
-                Mockito.mock(Delays.class), Mockito.mock(FlightDurations.class), Mockito.mock(AirportResources.class),
-                Mockito.mock(FlightEquipment.class), null);
-        FlightStatusResponse flightStatusResponse = new FlightStatusResponse(request, appendix,
-                Arrays.asList(flightStatuses));
-        return flightStatusResponse;
+    @FunctionalInterface
+    private interface ServiceMethod {
+        FlightStatusResponse method(DataLakeRequest request);
     }
 }
 
