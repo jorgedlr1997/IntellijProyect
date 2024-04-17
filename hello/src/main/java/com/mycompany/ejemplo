@@ -91,3 +91,20 @@ private DigitalMenuResponse validateResponseWithCode(final Response response){
         throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
                 DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), response.getStatus());
     }
+
+
+
+
+
+
+
+ @Test(expected = DigitalMenuProviderServiceException.class)
+    public void testDigitalMenuHandleStatus403() {
+        // Crear un objeto de respuesta simulada con un estado 403
+        Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(403);
+
+        // Ejecutar el método que se espera que lance la excepción
+        DigitalMenuProvider provider = new DigitalMenuProvider();
+        provider.digitalMenuHandleStatus403(response);
+    }
