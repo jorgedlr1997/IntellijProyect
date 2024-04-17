@@ -57,3 +57,12 @@ private DigitalMenuResponse validateResponseWithCode(final Response response){
                     DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), response.getStatus());
         }
     }
+
+
+
+
+private DigitalMenuResponse digitalMenuHandleStatus403(Response response){
+        DigitalMenuErrorResponse digitalMenuErrorResponse = response.readEntity(DigitalMenuErrorResponse.class);
+        throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.AUTHENTICATION_ERROR,
+                digitalMenuErrorResponse.getDetail(), response.getStatus());
+    }
