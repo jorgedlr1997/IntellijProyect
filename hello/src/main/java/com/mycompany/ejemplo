@@ -1,47 +1,59 @@
-@Test
-public void givenAValidRequestForFlightStatusThenShouldReturnAValidFlightStatusResponse()
-        throws IOException{
-    testFlightStatus("/datalake/flight/status/IB/448/dep/2021/07/16", FLIGHT_STATUS_RESPONSE_JSON, new FlightStatusServiceMethod() {
-        @Override
-        public FlightStatusResponse apply(DataLakeRequest request) {
-            return service.getFlightStatus(request);
+private DigitalMenuResponse validateResponseWithCode(final Response response){
+
+        final DigitalMenuErrorResponse digitalMenuErrorResponse;
+        switch(response.getStatus()){
+        case 200:
+            final DigitalMenuIBDPResponse digitalMenuIBDPResponse = response.readEntity(DigitalMenuIBDPResponse.class);
+            return digitalMenuIBDPResponseIntoDigitalMenuResponseConverter.convert(digitalMenuIBDPResponse);
+        case 422:
+            final DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse = response
+                    .readEntity(DigitalMenuErrorWithParamsResponse.class);
+            throw getDigitalMenuProviderServiceBadRequestException(digitalMenuErrorWithParamsResponse,
+                    response.getStatus());
+        case 401:
+            digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+            throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
+                    DigitalMenuErrorCodes.REQUEST_UNAUTHORIZED_ERROR);
+
+        case 403:
+            digitalMenuErrorResponse = response.readEntity(DigitalMenuErrorResponse.class);
+            throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.AUTHENTICATION_ERROR,
+                    digitalMenuErrorResponse.getDetail(), response.getStatus());
+
+        case 404:
+            digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+            throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
+                    DigitalMenuErrorCodes.FLIGHT_NOT_FOUND);
+        case 502:
+        case 503:
+            digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+            throw throwExceptionErrorResponse(digitalMenuErrorResponse, response.getStatus());
+        default:
+            digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+            throw getDefaultDigitalMenuProviderServiceException(digitalMenuErrorResponse, response);
+
         }
-    });
-}
+    }
 
-@Test
-public void givenAValidRequestForScheduledFlightsByAirportThenShouldReturnAValidFlightStatusResponse()
-        throws IOException{
-    testFlightStatus("/datalake/airport/status/MAD/dep/2021/07/16/13", SCHEDULED_FLIGHTS_BY_AIRPORT_RESPONSE_JSON, new FlightStatusServiceMethod() {
-        @Override
-        public FlightStatusResponse apply(DataLakeRequest request) {
-            return service.getScheduledFlightsByAirport(request);
+    private AllergensResponse validateAllergensResponse(final Response response){
+
+        switch(response.getStatus()){
+        case 200:
+            final AllergensIBDPResponse allergensIBDPResponse = response.readEntity(
+                    AllergensIBDPResponse.class);
+            return allegernsIBDPResponseIntoAllergensResponseConverter.convert(allergensIBDPResponse);
+        case 422:
+        case 412:
+            throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.BAD_REQUEST, LANGUAGE_NOT_FOUND,
+                    response.getStatus());
+        case 401:
+            throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.REQUEST_UNAUTHORIZED_ERROR,
+                    "UNAUTHORIZED", 401);
+        case 403:
+            throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.AUTHENTICATION_ERROR, "UNAUTHORIZED",
+                    403);
+        default:
+            throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
+                    DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), response.getStatus());
         }
-    });
-}
-
-@Test
-public void givenAValidRequestForScheduledFlightsByRouteThenShouldReturnAValidFlightStatusResponse()
-        throws IOException{
-    testFlightStatus("/datalake/route/status/MAD/BCN/dep/2021/07/16", SCHEDULED_FLIGHTS_BY_ROUTE_RESPONSE_JSON, new FlightStatusServiceMethod() {
-        @Override
-        public FlightStatusResponse apply(DataLakeRequest request) {
-            return service.getScheduledFlightsByRoute(request);
-        }
-    });
-}
-
-private void testFlightStatus(String path, String jsonResponse, FlightStatusServiceMethod serviceMethod)
-        throws IOException {
-    expected = getFlightStatusWebResponse(jsonResponse);
-    flightStatusResponse = buildFlightStatusResponse();
-    doReturn(flightStatusResponse).when(service).getFlightStatus(Mockito.any(DataLakeRequest.class));
-    response = getResponse(path);
-    assertThatStatus(response);
-    result = getResult(response);
-    assertResponse(result, expected);
-}
-
-interface FlightStatusServiceMethod {
-    FlightStatusResponse apply(DataLakeRequest request);
-}
+    }
