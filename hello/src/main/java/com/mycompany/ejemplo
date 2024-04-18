@@ -1,34 +1,23 @@
-package com.ib.captwo.ibdp.favl.coreservice.impl;
+package com.ib.captwo.datalake.favl.coreservice.impl;
 
-import com.ib.captwo.ibdp.favl.api.domain.DigitalMenuErrorDetailResponse;
-import com.ib.captwo.ibdp.favl.api.domain.DigitalMenuErrorResponse;
-import com.ib.captwo.ibdp.favl.api.domain.DigitalMenuErrorWithParamsResponse;
-import com.ib.captwo.ibdp.favl.api.domain.DigitalMenuIBDPResponse;
-import com.ib.captwo.ibdp.favl.api.domain.allergens.AllergensIBDPResponse;
-import com.ib.captwo.ibdp.favl.converters.DigitalMenuIBDPResponseIntoDigitalMenuResponseConverter;
-import com.ib.captwo.ibdp.favl.converters.allergens.AllegernsIBDPResponseIntoAllergensResponseConverter;
-import com.ib.captwo.ibdp.favl.coreservice.clients.DigitalMenuRSClient;
-import com.ib.captwo.ibdp.favl.exceptions.DigitalMenuErrorCodes;
-import com.ib.captwo.ibdp.favl.exceptions.DigitalMenuProviderServiceException;
-import com.ib.captwo.ibdp.favl.kpi.digitalmenu.KpiDigitalMenuProviderGenerator;
-import com.ib.captwo.sse.favl.coreservice.digitalmenu.DigitalMenuProvider;
-import com.ib.captwo.sse.favl.coreservice.digitalmenu.DigitalMenuUtils;
-import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.request.DigitalMenuFlightRequest;
-import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.request.DigitalMenuProviderRequest;
-import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.response.DigitalMenuProviderResponse;
-import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.response.DigitalMenuResponse;
-import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.response.allergens.AllergensResponse;
+import com.ib.captwo.datalake.favl.api.domain.DataLakeRequest;
+import com.ib.captwo.datalake.favl.api.domain.FlightStatusDLResponse;
+import com.ib.captwo.datalake.favl.converters.FlightStatusDLResponseIntoFlightStatusResponseConverter;
+import com.ib.captwo.datalake.favl.coreservice.FavlDataLakeProviderService;
+import com.ib.captwo.datalake.favl.coreservice.clients.DataLakeRSClient;
+import com.ib.captwo.datalake.favl.coreservice.domain.FlightStatusResponse;
+import com.ib.captwo.datalake.favl.exceptions.FavlDataLakeErrorCodes;
+import com.ib.captwo.datalake.favl.exceptions.FavlDataLakesProviderServiceException;
+import com.ib.framework.context.ClientContextHolder;
 import com.ib.framework.domain.Realm;
 import com.ib.framework.exception.IBBusinessException;
-import com.ib.framework.logging.core.KpiLog;
+import com.ib.framework.logging.core.KpiLogDefault;
 import com.ib.framework.logging.core.KpiType;
-import org.joda.time.LocalDate;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
@@ -37,301 +26,127 @@ import javax.ws.rs.client.ClientException;
 import javax.ws.rs.core.Response;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
-import java.util.ArrayList;
-import java.util.List;
 
+@SuppressWarnings("deprecation")
 @Component
-@DependsOn("digitalMenuRSClient")
-public class DigitalMenuProviderServiceImpl implements DigitalMenuProvider{
+@DependsOn("dataLakeRSClient")
+public class FavlDataLakeProviderServiceImpl implements FavlDataLakeProviderService{
 
-    private static final String ERROR_FORMAT = "%s -> %s";
-    private static final String LANGUAGE_NOT_FOUND = "Language not indicated";
-    private final String apiKey;
+    private final String appKey;
+    private final String appId;
 
-    private final DigitalMenuUtils digitalMenuUtils;
-    private final DigitalMenuIBDPResponseIntoDigitalMenuResponseConverter digitalMenuIBDPResponseIntoDigitalMenuResponseConverter;
-    private final AllegernsIBDPResponseIntoAllergensResponseConverter allegernsIBDPResponseIntoAllergensResponseConverter;
+    private final FlightStatusDLResponseIntoFlightStatusResponseConverter flightStatusDLResponseIntoFlightStatusResponseConverter;
 
-    @Resource(name = "digitalMenuRSClient")
-    private final DigitalMenuRSClient digitalMenuRSClient;
+    @Resource(name = "dataLakeRSClient")
+    private final DataLakeRSClient dataLakeRSClient;
 
     @Autowired
-    public DigitalMenuProviderServiceImpl(final DigitalMenuUtils digitalMenuUtils,
-            @Qualifier("digitalMenuRSClient") final DigitalMenuRSClient digitalMenuRSClient,
-            @Qualifier("digitalMenuIBDPResponseIntoDigitalMenuResponseConverter") final DigitalMenuIBDPResponseIntoDigitalMenuResponseConverter digitalMenuIBDPResponseIntoDigitalMenuResponseConverter,
-            @Qualifier("allegernsIBDPResponseIntoAllergensResponseConverter") final AllegernsIBDPResponseIntoAllergensResponseConverter allegernsIBDPResponseIntoAllergensResponseConverter,
-            @Value("${com.ib.captwo.ibdp.favl.service.endpoint.appKey}") final String apiKey){
-        this.digitalMenuUtils = digitalMenuUtils;
-        this.digitalMenuRSClient = digitalMenuRSClient;
-        this.digitalMenuIBDPResponseIntoDigitalMenuResponseConverter = digitalMenuIBDPResponseIntoDigitalMenuResponseConverter;
-        this.allegernsIBDPResponseIntoAllergensResponseConverter = allegernsIBDPResponseIntoAllergensResponseConverter;
-        this.apiKey = apiKey;
+    public FavlDataLakeProviderServiceImpl(@Qualifier("dataLakeRSClient")
+    final DataLakeRSClient dataLakeRSClient, @Qualifier("flightStatusDLResponseIntoFlightStatusResponseConverter")
+    final FlightStatusDLResponseIntoFlightStatusResponseConverter flightStatusDLResponseIntoFlightStatusResponseConverter,
+            @Value("${com.ib.captwo.datalake.favl.service.endpoint.appKey}")
+            final String appKey, @Value("${com.ib.captwo.datalake.favl.service.endpoint.appId}")
+            final String appId){
+        this.dataLakeRSClient = dataLakeRSClient;
+        this.flightStatusDLResponseIntoFlightStatusResponseConverter = flightStatusDLResponseIntoFlightStatusResponseConverter;
+        this.appKey = appKey;
+        this.appId = appId;
     }
 
     @Override
-    @KpiLog(operation = "getDigitalMenus", service = "digitalMenuService", kpi = KpiDigitalMenuProviderGenerator.class,
-            type = KpiType.KPI_ERROR, realm = Realm.Booking, stacktraceLength = 0)
-    public DigitalMenuProviderResponse getDigitalMenu(final DigitalMenuProviderRequest digitalMenuProviderRequest){
-        final List<DigitalMenuResponse> digitalMenuResponseList = new ArrayList<>();
-        for(final DigitalMenuFlightRequest digitalMenuFlightRequest : digitalMenuProviderRequest
-                .getDigitalMenuFlightList()){
-            callIBDPClient(digitalMenuResponseList, digitalMenuFlightRequest);
-        }
-        return DigitalMenuProviderResponse.builder().withDigitalMenuResponseList(digitalMenuResponseList).build();
-    }
-
-    @Override
-    @KpiLog(operation = "getAllergens", service = "digitalMenuService", kpi = KpiDigitalMenuProviderGenerator.class,
-            type = KpiType.KPI_ERROR, realm = Realm.Booking, stacktraceLength = 0)
-    public AllergensResponse getAllergens(final String language){
+    @KpiLogDefault(type = KpiType.KPI_INFO, realm = Realm.Booking, operation = "getFlightStatus", service = "dataLakeService")
+    public FlightStatusResponse getFlightStatus(final DataLakeRequest dataLakeRequest){
+        final FlightStatusResponse flightStatusResponse = null;
         try{
-            final Response response = digitalMenuRSClient.getAllergens(language, apiKey);
-            return validateAllergensResponse(response);
+            final Response response = dataLakeRSClient.getFlightStatus(dataLakeRequest.getCarrier(),
+                    dataLakeRequest.getFlight(), dataLakeRequest.getDate().getYear(),
+                    dataLakeRequest.getDate().getMonth(), dataLakeRequest.getDate().getDay(), appKey, appId,
+                    LocaleContextHolder.getLocale().getLanguage(), ClientContextHolder.getContext().getClientId());
+            return validateResponse(response);
         }catch(final BadRequestException badRequest){
-            throw new IBBusinessException(DigitalMenuErrorCodes.BAD_REQUEST, badRequest);
+            throw new IBBusinessException(FavlDataLakeErrorCodes.BAD_REQUEST, badRequest);
         }catch(final ClientException ce){
             handleSocketTimeoutException(ce);
             handleConnectException(ce);
         }
 
-        return null;
+        return flightStatusResponse;
     }
 
-    private void callIBDPClient(final List<DigitalMenuResponse> digitalMenuResponseList,
-            final DigitalMenuFlightRequest digitalMenuFlightRequest){
-        final DigitalMenuResponse digitalMenuResponse;
+    @Override
+    @KpiLogDefault(type = KpiType.KPI_INFO, realm = Realm.Booking, operation = "getScheduledFlightsByAirport", service = "dataLakeService")
+    public FlightStatusResponse getScheduledFlightsByAirport(final DataLakeRequest dataLakeRequest){
+        final FlightStatusResponse flightStatusResponse = null;
         try{
-            String cabin = null;
-            if(digitalMenuFlightRequest.getCabin() != null){
-                cabin = digitalMenuFlightRequest.getCabin().name();
-            }
-            final Response response = digitalMenuRSClient.getDigitalMenus(digitalMenuFlightRequest.getCompany(),
-                    getFlightNumber(digitalMenuFlightRequest.getNumber()),
-                    transformLocalDateToString(digitalMenuFlightRequest.getDepartureDate()), cabin,
-                    digitalMenuUtils.getLanguage(), apiKey);
+            final Response response = dataLakeRSClient.getScheduledFlightsByAirport(dataLakeRequest.getAirport(),
+                    dataLakeRequest.getDepOrArr(), dataLakeRequest.getDate().getYear(),
+                    dataLakeRequest.getDate().getMonth(), dataLakeRequest.getDate().getDay(),
+                    dataLakeRequest.getHourOfDay(), appKey, appId, LocaleContextHolder.getLocale().getLanguage(),
+                    dataLakeRequest.getCarrier(), ClientContextHolder.getContext().getClientId());
+            return validateResponse(response);
+        }catch(final BadRequestException e){
+            throw new IBBusinessException(FavlDataLakeErrorCodes.BAD_REQUEST, e);
+        }catch(final ClientException e){
+            handleSocketTimeoutException(e);
+            handleConnectException(e);
+        }
 
-            digitalMenuResponse = validateResponseWithCode(response);
-            digitalMenuResponseList.add(digitalMenuResponse);
-        }catch(final BadRequestException badRequest){
-            throw new IBBusinessException(DigitalMenuErrorCodes.BAD_REQUEST, badRequest);
+        return flightStatusResponse;
+    }
+
+    @Override
+    @KpiLogDefault(type = KpiType.KPI_INFO, realm = Realm.Booking, operation = "getScheduledFlightsByRoute", service = "dataLakeService")
+    public FlightStatusResponse getScheduledFlightsByRoute(final DataLakeRequest dataLakeRequest){
+        final FlightStatusResponse flightStatusResponse = null;
+        try{
+            final Response response = dataLakeRSClient.getScheduledFlightsByRoute(dataLakeRequest.getDepartureAirport(),
+                    dataLakeRequest.getArrivalAirport(), dataLakeRequest.getDepOrArr(),
+                    dataLakeRequest.getDate().getYear(), dataLakeRequest.getDate().getMonth(),
+                    dataLakeRequest.getDate().getDay(), appKey, appId, LocaleContextHolder.getLocale().getLanguage(),
+                    dataLakeRequest.getCarrier(), ClientContextHolder.getContext().getClientId());
+            return validateResponse(response);
         }catch(final ClientException ce){
             handleSocketTimeoutException(ce);
             handleConnectException(ce);
+        }catch(final BadRequestException badRequest){
+            throw new IBBusinessException(FavlDataLakeErrorCodes.BAD_REQUEST, badRequest);
         }
+
+        return flightStatusResponse;
     }
 
     private void handleSocketTimeoutException(final ClientException ce){
         if(ce.getCause() instanceof SocketTimeoutException){
-            throw new IBBusinessException(DigitalMenuErrorCodes.REQUEST_TIMEOUT);
+            throw new IBBusinessException(FavlDataLakeErrorCodes.REQUEST_TIMEOUT);
         }
     }
 
     private void handleConnectException(final ClientException ce){
         if(ce.getCause() instanceof ConnectException){
-            throw new IBBusinessException(DigitalMenuErrorCodes.BAD_GATEWAY);
+            throw new IBBusinessException(FavlDataLakeErrorCodes.BAD_GATEWAY);
         }
     }
 
-    private String transformLocalDateToString(final LocalDate date){
-        if(date != null){
-            try{
-                final DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd");
-                return fmt.print(date);
-            }catch(final IllegalArgumentException e){
-                return null;
-            }
-        }
-        return null;
-    }
-
-    private String getFlightNumber(final String flightNumber){
-        String formattedFlightNumber = flightNumber;
-        if(flightNumber.length() < 4){
-            formattedFlightNumber = String.format("%04d", Integer.valueOf(flightNumber));
-        }
-        return formattedFlightNumber;
-    }
-
-    /**
-     * Map bad request from IBDPErrorCode to DigitalMenuErrorCode
-     * @param digitalMenuErrorWithParamsResponse Response from IBDP (with error code)
-     * @param responseStatus HTTP code from IBDP
-     * */
-    private DigitalMenuProviderServiceException getDigitalMenuProviderServiceBadRequestException(
-            final DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse, final int responseStatus){
-        final StringBuilder description = new StringBuilder();
-        for(final DigitalMenuErrorDetailResponse digitalMenuErrorDetailResponse : digitalMenuErrorWithParamsResponse
-                .getDetails()){
-            if(description.length() > 0){
-                description.append(" / ");
-            }
-            description.append(digitalMenuErrorDetailResponse.getMsg()).append(": ")
-                    .append(digitalMenuErrorDetailResponse.getLoc()[1]).append(", ")
-                    .append(digitalMenuErrorDetailResponse.geType());
-        }
-        return new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.BAD_REQUEST, description.toString(),
-                responseStatus);
-    }
-
-    /* *********************************************************************
-     *  Methods to map response of IBDP (with error structure with code)
-     * ********************************************************************* */
-    private DigitalMenuResponse validateResponseWithCode(final Response response){
-
-        switch(response.getStatus()){
-            case 200:
-                return digitalMenuHandleStatus200(response);
-            case 422:
-                return digitalMenuHandleStatus422(response);
-            case 401:
-                return digitalMenuHandleStatus401(response);
-            case 403:
-                return digitalMenuHandleStatus403(response);
-            case 404:
-                return digitalMenuHandleStatus404(response);
-            case 502:
-            case 503:
-                return digitalMenuHandleStatus50X(response);
-            default:
-                return digitalMenuHandleUnknowStatus(response);
-        }
-    }
-
-    private DigitalMenuResponse digitalMenuHandleStatus200(Response response){
-        final DigitalMenuIBDPResponse digitalMenuIBDPResponse = response.readEntity(DigitalMenuIBDPResponse.class);
-        return digitalMenuIBDPResponseIntoDigitalMenuResponseConverter.convert(digitalMenuIBDPResponse);
-    }
-    private DigitalMenuResponse digitalMenuHandleStatus422(Response response){
-        final DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse = response
-                .readEntity(DigitalMenuErrorWithParamsResponse.class);
-        throw getDigitalMenuProviderServiceBadRequestException(digitalMenuErrorWithParamsResponse,
-                response.getStatus());
-    }
-
-    private DigitalMenuResponse digitalMenuHandleStatus401(Response response){
-        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
-        throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
-                DigitalMenuErrorCodes.REQUEST_UNAUTHORIZED_ERROR);
-    }
-    private DigitalMenuResponse digitalMenuHandleStatus403(Response response){
-        DigitalMenuErrorResponse digitalMenuErrorResponse = response.readEntity(DigitalMenuErrorResponse.class);
-        throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.AUTHENTICATION_ERROR,
-                digitalMenuErrorResponse.getDetail(), response.getStatus());
-    }
-    private DigitalMenuResponse digitalMenuHandleStatus404(Response response){
-        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
-        throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
-                DigitalMenuErrorCodes.FLIGHT_NOT_FOUND);
-    }
-    private DigitalMenuResponse digitalMenuHandleStatus50X(Response response){
-        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
-        throw throwExceptionErrorResponse(digitalMenuErrorResponse, response.getStatus());
-    }
-    private DigitalMenuResponse digitalMenuHandleUnknowStatus(Response response){
-        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
-        throw getDefaultDigitalMenuProviderServiceException(digitalMenuErrorResponse, response);
-    }
-
-    private AllergensResponse validateAllergensResponse(final Response response){
-
+    private FlightStatusResponse validateResponse(final Response response){
         switch(response.getStatus()){
         case 200:
-            return allergensHandleStatus200(response);
-        case 422:
-        case 412:
-            return allergensHandleStatus412_422(response);
+            final FlightStatusDLResponse flightStatusDLResponse = response.readEntity(FlightStatusDLResponse.class);
+
+            return flightStatusDLResponseIntoFlightStatusResponseConverter.convert(flightStatusDLResponse);
+        case 400:
+            throw new FavlDataLakesProviderServiceException(FavlDataLakeErrorCodes.BAD_REQUEST,
+                    FavlDataLakeErrorCodes.BAD_REQUEST.getErrorDescription() + response.readEntity(String.class));
         case 401:
-            return allergensHandleStatus401();
-        case 403:
-            return allergensHandleStatus403();
+            throw new FavlDataLakesProviderServiceException(FavlDataLakeErrorCodes.REQUEST_UNAUTHORIZED_ERROR,
+                    FavlDataLakeErrorCodes.REQUEST_UNAUTHORIZED_ERROR.getErrorDescription()
+                            + response.readEntity(String.class));
+        case 404:
+            throw new FavlDataLakesProviderServiceException(FavlDataLakeErrorCodes.FLIGHTS_NOT_FOUND,
+                    FavlDataLakeErrorCodes.FLIGHTS_NOT_FOUND.getErrorDescription() + response.readEntity(String.class));
         default:
-            return allergensUnknowStatus(response);
+            throw new FavlDataLakesProviderServiceException(FavlDataLakeErrorCodes.UNEXPECTED_ERROR,
+                    FavlDataLakeErrorCodes.UNEXPECTED_ERROR.getErrorDescription() + response.readEntity(String.class));
         }
     }
 
-    private AllergensResponse allergensHandleStatus200(Response response){
-        final AllergensIBDPResponse allergensIBDPResponse = response.readEntity(AllergensIBDPResponse.class);
-        return allegernsIBDPResponseIntoAllergensResponseConverter.convert(allergensIBDPResponse);
-    }
-    private AllergensResponse allergensHandleStatus412_422(Response response){
-        throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.BAD_REQUEST, LANGUAGE_NOT_FOUND,
-                response.getStatus());
-    }
-    private AllergensResponse allergensHandleStatus401(){
-        throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.REQUEST_UNAUTHORIZED_ERROR,
-                "UNAUTHORIZED", 401);
-    }
-    private AllergensResponse allergensHandleStatus403(){
-        throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.AUTHENTICATION_ERROR, "UNAUTHORIZED",
-                403);
-    }
-    private AllergensResponse allergensUnknowStatus(Response response){
-        throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
-                DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), response.getStatus());
-    }
-
-    private DigitalMenuProviderServiceException throwExceptionErrorResponse(
-            final DigitalMenuErrorResponse digitalMenuErrorResponse, final int status){
-        if(digitalMenuErrorResponse == null){
-            throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
-                    DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), status);
-        }else {
-            throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, status,
-                    DigitalMenuErrorCodes.UNEXPECTED_ERROR);
-        }
-    }
-
-    private DigitalMenuErrorResponse readDigitalMenuErrorResponse(final Response response){
-        try{
-            return response.readEntity(DigitalMenuErrorResponse.class);
-        }catch(final Exception e){
-            return null;
-        }
-    }
-
-    /**
-     * Map error from IBDPErrorCode to DigitalMenuErrorCode
-     * @param digitalMenuErrorResponse Response from IBDP (with error code)
-     * @param responseStatus HTTP code from IBDP
-     * */
-    private DigitalMenuProviderServiceException getDigitalMenuProviderServiceException(
-            final DigitalMenuErrorResponse digitalMenuErrorResponse,
-            final int responseStatus, final DigitalMenuErrorCodes digitalMenuResultErrorCode){
-
-        if(digitalMenuErrorResponse == null){
-            return new DigitalMenuProviderServiceException(digitalMenuResultErrorCode, null, responseStatus);
-        }
-
-        // Check Map DigitalMenuErrorCode Code for IBDPErrorCode
-        final DigitalMenuErrorCodes digitalMenuErrorCodes = DigitalMenuErrorCodes.IBDPErrorCode
-                .getDigitalMenuErrorCode(digitalMenuErrorResponse.getErrorDetails().getErrorCode());
-        if(digitalMenuErrorCodes == null){
-            // IBDPErrorCode not mapped throw UNEXPECTED_ERROR
-            return new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
-                    DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), responseStatus);
-        }
-
-        return new DigitalMenuProviderServiceException(digitalMenuErrorCodes,
-                String.format(ERROR_FORMAT, digitalMenuErrorResponse.getErrorDetails().getErrorCode(),
-                        digitalMenuErrorResponse.getErrorDetails().getMessage()), responseStatus);
-    }
-
-    private DigitalMenuProviderServiceException getDefaultDigitalMenuProviderServiceException(
-            final DigitalMenuErrorResponse digitalMenuErrorResponse, final Response response){
-
-        //Backward compatibility old error structure
-        if(digitalMenuErrorResponse != null && digitalMenuErrorResponse.getErrorDetails() == null){
-            return new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
-                    response.readEntity(String.class), response.getStatus());
-        }else {
-            if(digitalMenuErrorResponse == null){
-                return new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
-                        DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), response.getStatus());
-            }else {
-                return new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.UNEXPECTED_ERROR,
-                        digitalMenuErrorResponse.getErrorDetails().getErrorCode() + ": " + digitalMenuErrorResponse
-                                .getErrorDetails().getErrorCode(), response.getStatus());
-            }
-        }
-    }
 }
