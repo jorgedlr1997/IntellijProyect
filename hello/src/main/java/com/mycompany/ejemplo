@@ -27,3 +27,33 @@
         verify(contractclient,times(1)).getStandByPassengerList("123", "20/02/2022","MAD");
         assertThat(response, is(sysurveydisplay));
     }
+
+
+
+
+
+@Test
+    public void getFlighInfo() throws ResiberException {
+        sysurveydisplay = mock(SYSURVEYDISPLAY.class);
+        when(contractclient.getFlightInfo("123", "20/02/2022","MAD")).thenReturn(sysurveydisplay);
+        SYSURVEYDISPLAY response = repository.getSeatsFlightInfo("123", "20/02/2022","MAD");
+        verify(contractclient,times(1)).getFlightInfo("123", "20/02/2022","MAD");
+        assertThat(response, is(sysurveydisplay));
+    }
+
+    private void mockito(ResiberContractService service){
+        when(service(("123","20/02/2022","MAD"))).thenReturn(sysurveydisplay);
+    }
+
+
+
+
+
+
+
+
+
+mockitoBadRequest(service.getScheduledFlightsByRoute(request));
+private void mockitoBadRequest(FlightStatusResponse service) {
+        when(service).thenThrow(mock(BadRequestException.class));
+    }
