@@ -476,3 +476,336 @@ public class DigitalMenuProviderServiceImpl implements DigitalMenuProvider{
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+package com.ib.captwo.ibdp.favl.coreservice.impl;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ib.captwo.ibdp.favl.api.domain.DigitalMenuErrorResponse;
+import com.ib.captwo.ibdp.favl.api.domain.DigitalMenuErrorWithParamsResponse;
+import com.ib.captwo.ibdp.favl.api.domain.DigitalMenuIBDPResponse;
+import com.ib.captwo.ibdp.favl.api.domain.allergens.AllergensIBDPResponse;
+import com.ib.captwo.ibdp.favl.converters.DigitalMenuIBDPResponseIntoDigitalMenuResponseConverter;
+import com.ib.captwo.ibdp.favl.converters.allergens.AllegernsIBDPResponseIntoAllergensResponseConverter;
+import com.ib.captwo.ibdp.favl.coreservice.clients.DigitalMenuRSClient;
+import com.ib.captwo.ibdp.favl.exceptions.DigitalMenuErrorCodes;
+import com.ib.captwo.ibdp.favl.exceptions.DigitalMenuProviderServiceException;
+import com.ib.captwo.sse.favl.coreservice.digitalmenu.CabinType;
+import com.ib.captwo.sse.favl.coreservice.digitalmenu.DigitalMenuUtils;
+import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.request.DigitalMenuFlightRequest;
+import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.request.DigitalMenuProviderRequest;
+import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.response.DigitalMenuProviderResponse;
+import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.response.DigitalMenuResponse;
+import com.ib.captwo.sse.favl.coreservice.domain.digitalmenu.response.allergens.AllergensResponse;
+import com.ib.framework.exception.IBBusinessException;
+import com.ib.framework.utils.rest.CapTwoJackson2ObjectMapperFactory;
+import org.apache.commons.io.IOUtils;
+import org.joda.time.LocalDate;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.junit.Before;
+import org.junit.Test;
+import org.springframework.context.i18n.LocaleContextHolder;
+
+import javax.ws.rs.client.ClientException;
+import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.SocketTimeoutException;
+import java.util.Collections;
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class DigitalMenuProviderServiceImplTest{
+
+    private static final String ERROR_FORMAT = "%s -> %s";
+    private static final String COMPANY = "IB";
+    private static final String NUMBER = "248";
+    private static final String FORMATTED_NUMBER = "0248";
+    private static final LocalDate DEPARTURE_LOCAL_DATE = LocalDate.now();
+    private final String DEPARTURE_DATE = transformLocalDateToString();
+    private static final String API_KEY = "apiKey";
+
+    private final DigitalMenuUtils digitalMenuUtils = mock(DigitalMenuUtils.class);
+    private final DigitalMenuRSClient digitalMenuRSClient = mock(DigitalMenuRSClient.class);
+    private final DigitalMenuIBDPResponseIntoDigitalMenuResponseConverter digitalMenuIBDPResponseIntoDigitalMenuResponseConverter = mock(
+            DigitalMenuIBDPResponseIntoDigitalMenuResponseConverter.class);
+
+    private final AllegernsIBDPResponseIntoAllergensResponseConverter allegernsIBDPResponseIntoAllergensResponseConverter = mock(
+            AllegernsIBDPResponseIntoAllergensResponseConverter.class);
+
+    protected DigitalMenuProviderServiceImpl service;
+    private final Locale locale = new Locale("es", "ES");
+
+    @Before
+    public void setUp(){
+        service = new DigitalMenuProviderServiceImpl(digitalMenuUtils, digitalMenuRSClient,
+                digitalMenuIBDPResponseIntoDigitalMenuResponseConverter,
+                allegernsIBDPResponseIntoAllergensResponseConverter, API_KEY);
+        when(digitalMenuUtils.getLanguage()).thenReturn("es");
+        LocaleContextHolder.setLocale(locale);
+    }
+
+    @Test
+    public void shouldCallRSClient_WhenAskedToDigitalMenu(){
+
+        final DigitalMenuProviderRequest digitalMenuProviderRequest = mockDigitalMenuProviderRequest();
+
+        final DigitalMenuIBDPResponse digitalMenuIBDPResponse = openStreamFromFile("/json/digitalMenuIBDPResponse.json",
+                DigitalMenuIBDPResponse.class);
+
+        final DigitalMenuResponse expectedResponse = mock(DigitalMenuResponse.class);
+        when(digitalMenuIBDPResponseIntoDigitalMenuResponseConverter.convert(digitalMenuIBDPResponse))
+                .thenReturn(expectedResponse);
+
+        final Response responseOk = mock(Response.class);
+        when(responseOk.getStatus()).thenReturn(Response.Status.OK.getStatusCode());
+        when(responseOk.readEntity(DigitalMenuIBDPResponse.class)).thenReturn(digitalMenuIBDPResponse);
+
+        when(digitalMenuRSClient.getDigitalMenus(COMPANY, FORMATTED_NUMBER, DEPARTURE_DATE, CabinType.BUSINESS.name(),
+                LocaleContextHolder.getLocale().getLanguage(), API_KEY)).thenReturn(responseOk);
+
+        //when
+        final DigitalMenuProviderResponse result = service.getDigitalMenu(digitalMenuProviderRequest);
+
+        //then
+        assertThat(result.getDigitalMenuResponseList().get(0), is(expectedResponse));
+    }
+
+    @Test
+    public void shouldCallRSClient_WhenAskedToGetAllergen(){
+        //given
+        final AllergensIBDPResponse allergensIBDPResponse = mock(AllergensIBDPResponse.class);
+        final AllergensResponse expectedResponse = mock(AllergensResponse.class);
+        final Response responseOk = mock(Response.class);
+        when(allegernsIBDPResponseIntoAllergensResponseConverter.convert(allergensIBDPResponse))
+                .thenReturn(expectedResponse);
+        when(responseOk.getStatus()).thenReturn(Response.Status.OK.getStatusCode());
+        when(responseOk.readEntity(AllergensIBDPResponse.class)).thenReturn(allergensIBDPResponse);
+        when(digitalMenuRSClient.getAllergens(
+                LocaleContextHolder.getLocale().getLanguage(), API_KEY)).thenReturn(responseOk);
+        //when
+        final AllergensResponse result = service.getAllergens(LocaleContextHolder.getLocale().getLanguage());
+        //then
+        assertThat(result, is(expectedResponse));
+    }
+
+    @Test
+    public void shouldReturnUnauthorizedError_WhenAskedToToDigitalMenuWithWrongAuthenticationDataThatProvokeUnauthorizedResponseV2(){
+
+        final DigitalMenuErrorResponse digitalMenuErrorResponse = openStreamFromFile(
+                "/json/digitalMenuIBDPUnauthorizedV2.json", DigitalMenuErrorResponse.class);
+
+        final String expectedDescription = getExpectedDescriptionFromDigitalMenuErrorResponse(digitalMenuErrorResponse);
+
+        final Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(Response.Status.UNAUTHORIZED.getStatusCode());
+        when(response.readEntity(DigitalMenuErrorResponse.class)).thenReturn(digitalMenuErrorResponse);
+
+        when(digitalMenuRSClient.getDigitalMenus(COMPANY, FORMATTED_NUMBER, DEPARTURE_DATE, CabinType.BUSINESS.name(),
+                LocaleContextHolder.getLocale().getLanguage(), API_KEY)).thenReturn(response);
+
+        callServiceAndExpectedException(response, DigitalMenuErrorCodes.FLIGHT_NOT_FOUND, expectedDescription);
+    }
+
+    @Test
+    public void shouldReturnNotFound_WhenAskedToDigitalMenuProvoquesNotFoundAndErrorCodeIsNotMappedResponseV2(){
+
+        final DigitalMenuErrorResponse digitalMenuErrorResponse = openStreamFromFile(
+                "/json/digitalMenuIBDPNotFoundWithInvalidErrorCodeV2.json", DigitalMenuErrorResponse.class);
+
+        final Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(Response.Status.NOT_FOUND.getStatusCode());
+        when(response.readEntity(DigitalMenuErrorResponse.class)).thenReturn(digitalMenuErrorResponse);
+
+        callServiceAndExpectedException(response, DigitalMenuErrorCodes.UNEXPECTED_ERROR,
+                DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription());
+    }
+
+    @Test
+    public void shouldReturnNotFound_WhenAskedToDigitalMenuProvokeServiceUnavailableAndReadEntityIsNullResponseV2(){
+        final Response response = buildResponseWithStatusAndTestEntity(Response.Status.SERVICE_UNAVAILABLE);
+        callServiceAndExpectedException(response, DigitalMenuErrorCodes.UNEXPECTED_ERROR,
+                DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription());
+    }
+
+    @Test
+    public void shouldReturnNotFound_WhenAskedToDigitalMenuProvokeNotFoundAndReadEntityIsNullResponseV2(){
+        final Response response = buildResponseWithStatusAndTestEntity(Response.Status.NOT_FOUND);
+        callServiceAndExpectedException(response, DigitalMenuErrorCodes.FLIGHT_NOT_FOUND, null);
+    }
+
+    private Response buildResponseWithStatusAndTestEntity(final Response.Status status){
+        final Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(status.getStatusCode());
+        when(response.readEntity(DigitalMenuErrorResponse.class)).thenReturn(null);
+        when(response.readEntity(String.class)).thenReturn("TEST");
+        return response;
+    }
+
+    @Test
+    public void shouldReturnRESTResponseError_WhenAskedToDigitalMenuWithWrongDataThatProvoquesBadRequestResponse(){
+
+        final DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse = openStreamFromFile(
+                "/json/digitalMenuIBDPBadRequest.json", DigitalMenuErrorWithParamsResponse.class);
+
+        final String expectedDescription = buildExpectedDescription(digitalMenuErrorWithParamsResponse);
+
+        final Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(422);
+        when(response.readEntity(DigitalMenuErrorWithParamsResponse.class))
+                .thenReturn(digitalMenuErrorWithParamsResponse);
+
+        callServiceAndExpectedException(response, DigitalMenuErrorCodes.BAD_REQUEST, expectedDescription);
+
+    }
+
+    @Test
+    public void getDigitalMenuShouldThrowExceptionWhenInternalServerError(){
+
+        final String expectedDescription = DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription();
+
+        final Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode());
+        when(response.readEntity(String.class)).thenReturn(expectedDescription);
+
+        callServiceAndExpectedException(response, DigitalMenuErrorCodes.UNEXPECTED_ERROR, expectedDescription);
+    }
+
+    @Test
+    public void getDigitalMenuShouldThrowExceptionWhenInternalServerErrorV2(){
+        baseReturnExpectedErrorAndDescription("/json/digitalMenuIBDPBadGatewayV2.json", Response.Status.BAD_GATEWAY,
+                DigitalMenuErrorCodes.FLIGHT_NOT_FOUND);
+
+    }
+
+    @Test
+    public void shouldReturnNotFound_WhenAskedToDigitalMenuProvoquesNotFoundResponseV2(){
+        baseReturnExpectedErrorAndDescription("/json/digitalMenuIBDPNotFoundV2.json", Response.Status.NOT_FOUND,
+                DigitalMenuErrorCodes.CABIN_NOT_ALLOWED);
+    }
+
+    private void baseReturnExpectedErrorAndDescription(final String file, final Response.Status statusExpected,
+            final DigitalMenuErrorCodes errorExpected){
+
+        final DigitalMenuErrorResponse digitalMenuErrorResponse = openStreamFromFile(file,
+                DigitalMenuErrorResponse.class);
+
+        final String expectedDescription = getExpectedDescriptionFromDigitalMenuErrorResponse(digitalMenuErrorResponse);
+
+        final Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(statusExpected.getStatusCode());
+        when(response.readEntity(DigitalMenuErrorResponse.class)).thenReturn(digitalMenuErrorResponse);
+
+        callServiceAndExpectedException(response, errorExpected, expectedDescription);
+
+    }
+
+    private String getExpectedDescriptionFromDigitalMenuErrorResponse(
+            final DigitalMenuErrorResponse digitalMenuErrorResponse){
+        return String.format(ERROR_FORMAT, digitalMenuErrorResponse.getErrorDetails().getErrorCode(),
+                digitalMenuErrorResponse.getErrorDetails().getMessage());
+    }
+
+    private void callServiceAndExpectedException(final Response responseExpected,
+            final DigitalMenuErrorCodes errorExpected, final String descriptionExpected){
+
+        final DigitalMenuProviderRequest digitalMenuProviderRequest = mockDigitalMenuProviderRequest();
+
+        when(digitalMenuRSClient.getDigitalMenus(COMPANY, FORMATTED_NUMBER, DEPARTURE_DATE, CabinType.BUSINESS.name(),
+                LocaleContextHolder.getLocale().getLanguage(), API_KEY)).thenReturn(responseExpected);
+
+        try{
+            service.getDigitalMenu(digitalMenuProviderRequest);
+        }catch(final Exception e){
+            final DigitalMenuProviderServiceException exception = (DigitalMenuProviderServiceException) e;
+            assertThat(exception.getErrorCode(), is(errorExpected.getErrorCode()));
+            assertThat(exception.getErrorDescription(), is(errorExpected.getErrorDescription()));
+            assertThat(exception.getDescription(), is(descriptionExpected));
+        }
+
+    }
+
+    @Test
+    public void getDigitalMenuShouldThrowExceptionWhenBadRequestException(){
+        baseWhenDigitalMenuClientThrowException(new javax.ws.rs.BadRequestException(),
+                DigitalMenuErrorCodes.BAD_REQUEST);
+    }
+
+    @Test
+    public void getDigitalMenuShouldThrowExceptionWhenClientException(){
+        baseWhenDigitalMenuClientThrowException(new ClientException(new SocketTimeoutException()),
+                DigitalMenuErrorCodes.REQUEST_TIMEOUT);
+    }
+
+    private void baseWhenDigitalMenuClientThrowException(final Exception exceptionThrown,
+            final DigitalMenuErrorCodes expetectedError){
+        final DigitalMenuProviderRequest digitalMenuProviderRequest = mockDigitalMenuProviderRequest();
+
+        when(digitalMenuRSClient.getDigitalMenus(COMPANY, FORMATTED_NUMBER, DEPARTURE_DATE, CabinType.BUSINESS.name(),
+                LocaleContextHolder.getLocale().getLanguage(), API_KEY)).thenThrow(exceptionThrown);
+
+        try{
+            service.getDigitalMenu(digitalMenuProviderRequest);
+        }catch(final IBBusinessException exception){
+            assertThat(exception.getErrorCode(), is(expetectedError.getErrorCode()));
+        }
+    }
+
+    private String buildExpectedDescription(
+            final DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse){
+        return digitalMenuErrorWithParamsResponse.getDetails().get(0).getMsg() + ": "
+                + digitalMenuErrorWithParamsResponse.getDetails().get(0).getLoc()[1] + ", "
+                + digitalMenuErrorWithParamsResponse.getDetails().get(0).geType() + " / "
+                + digitalMenuErrorWithParamsResponse.getDetails().get(1).getMsg() + ": "
+                + digitalMenuErrorWithParamsResponse.getDetails().get(1).getLoc()[1] + ", "
+                + digitalMenuErrorWithParamsResponse.getDetails().get(1).geType();
+    }
+
+    private DigitalMenuProviderRequest mockDigitalMenuProviderRequest(){
+        final DigitalMenuProviderRequest digitalMenuProviderRequest = mock(DigitalMenuProviderRequest.class);
+        final DigitalMenuFlightRequest digitalMenuFlightRequest = mock(DigitalMenuFlightRequest.class);
+        when(digitalMenuFlightRequest.getCompany()).thenReturn(COMPANY);
+        when(digitalMenuFlightRequest.getNumber()).thenReturn(NUMBER);
+        when(digitalMenuFlightRequest.getCabin()).thenReturn(CabinType.BUSINESS);
+        when(digitalMenuFlightRequest.getDepartureDate()).thenReturn(DEPARTURE_LOCAL_DATE);
+        when(digitalMenuProviderRequest.getDigitalMenuFlightList())
+                .thenReturn(Collections.singletonList(digitalMenuFlightRequest));
+        return digitalMenuProviderRequest;
+    }
+
+    private <T> T openStreamFromFile(final String path, final Class<T> clase){
+        final ObjectMapper mapper = CapTwoJackson2ObjectMapperFactory.getInstance();
+        T digitalMenuErrorResponse = null;
+        try(final InputStream inputStream = DigitalMenuProviderServiceImplTest.class.getResource(path).openStream()){
+            digitalMenuErrorResponse = mapper.readValue(IOUtils.toString(inputStream), clase);
+        }catch(final IOException ioex){
+            fail("Error loading json file");
+        }
+        return digitalMenuErrorResponse;
+    }
+
+    private String transformLocalDateToString(){
+        try{
+            final DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd");
+            return fmt.print(DigitalMenuProviderServiceImplTest.DEPARTURE_LOCAL_DATE);
+        }catch(final IllegalArgumentException e){
+            return null;
+        }
+    }
+}
+
