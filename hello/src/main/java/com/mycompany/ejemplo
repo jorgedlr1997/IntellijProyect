@@ -809,3 +809,41 @@ public class DigitalMenuProviderServiceImplTest{
     }
 }
 
+
+
+
+
+
+@Test(expected = DigitalMenuProviderServiceException.class)
+public void shouldHandleHTTP422UnprocessableEntity() {
+    // Configurar el mock del DigitalMenuProviderRequest
+    DigitalMenuProviderRequest digitalMenuProviderRequest = mockDigitalMenuProviderRequest();
+
+    // Simular la respuesta de HTTP 422 con un objeto de error esperado
+    DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse = openStreamFromFile(
+        "/json/digitalMenuIBDPBadRequest.json", DigitalMenuErrorWithParamsResponse.class);
+
+    // Configurar la respuesta del mock
+    Response response = mock(Response.class);
+    when(response.getStatus()).thenReturn(422);  // HTTP 422
+    when(response.readEntity(DigitalMenuErrorWithParamsResponse.class))
+        .thenReturn(digitalMenuErrorWithParamsResponse);
+
+    // Configurar el cliente mock para devolver la respuesta simulada
+    when(digitalMenuRSClient.getDigitalMenus(COMPANY, FORMATTED_NUMBER, DEPARTURE_DATE, CabinType.BUSINESS.name(),
+            LocaleContextHolder.getLocale().getLanguage(), API_KEY))
+        .thenReturn(response);
+
+    // Llamar al método que debería lanzar la excepción
+    try {
+        service.getDigitalMenu(digitalMenuProviderRequest);
+        fail("Se esperaba que se lanzara DigitalMenuProviderServiceException");
+    } catch (DigitalMenuProviderServiceException e) {
+        // Verificar los atributos de la excepción
+        assertThat(e.getErrorCode(), is(DigitalMenuErrorCodes.BAD_REQUEST.getErrorCode()));
+        assertThat(e.getErrorDescription(), is(DigitalMenuErrorCodes.BAD_REQUEST.getErrorDescription()));
+        assertThat(e.getDescription(), is(digitalMenuErrorWithParamsResponse.getDetails().get(0).getMsg()));
+        
+        // Puedes añadir más aserciones aquí si hay más atributos de la excepción que quieras verificar.
+    }
+}
