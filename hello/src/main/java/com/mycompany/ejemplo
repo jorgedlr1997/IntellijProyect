@@ -57,3 +57,74 @@ private DigitalMenuResponse validateResponseWithCode(final Response response){
                     DigitalMenuErrorCodes.UNEXPECTED_ERROR.getErrorDescription(), response.getStatus());
         }
     }
+
+
+
+
+
+
+
+
+
+
+
+private DigitalMenuResponse validateResponseWithCode(final Response response) {
+    final int status = response.getStatus();
+    final DigitalMenuErrorResponse digitalMenuErrorResponse;
+
+    switch (status) {
+        case 200:
+            return handle200Response(response);
+        case 422:
+            handle422Response(response);
+        case 401:
+            handle401Response(response);
+        case 403:
+            handle403Response(response);
+        case 404:
+            handle404Response(response);
+        case 502:
+        case 503:
+            handle5xxResponse(response);
+        default:
+            handleDefaultResponse(response);
+    }
+    return null; // Nunca debería llegar aquí
+}
+
+private DigitalMenuResponse handle200Response(final Response response) {
+    final DigitalMenuIBDPResponse digitalMenuIBDPResponse = response.readEntity(DigitalMenuIBDPResponse.class);
+    return digitalMenuIBDPResponseIntoDigitalMenuResponseConverter.convert(digitalMenuIBDPResponse);
+}
+
+private void handle422Response(final Response response) {
+    final DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse = response.readEntity(DigitalMenuErrorWithParamsResponse.class);
+    throw getDigitalMenuProviderServiceBadRequestException(digitalMenuErrorWithParamsResponse, response.getStatus());
+}
+
+private void handle401Response(final Response response) {
+    final DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+    throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
+            DigitalMenuErrorCodes.REQUEST_UNAUTHORIZED_ERROR);
+}
+
+private void handle403Response(final Response response) {
+    final DigitalMenuErrorResponse digitalMenuErrorResponse = response.readEntity(DigitalMenuErrorResponse.class);
+    throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.AUTHENTICATION_ERROR, digitalMenuErrorResponse.getDetail(), response.getStatus());
+}
+
+private void handle404Response(final Response response) {
+    final DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+    throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
+            DigitalMenuErrorCodes.FLIGHT_NOT_FOUND);
+}
+
+private void handle5xxResponse(final Response response) {
+    final DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+    throw throwExceptionErrorResponse(digitalMenuErrorResponse, response.getStatus());
+}
+
+private void handleDefaultResponse(final Response response) {
+    final DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+    throw getDefaultDigitalMenuProviderServiceException(digitalMenuErrorResponse, response);
+}
