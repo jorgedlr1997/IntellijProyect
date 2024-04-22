@@ -854,3 +854,63 @@ public void shouldHandleHTTP422UnprocessableEntity() {
 java.lang.AssertionError: Expected exception: com.ib.captwo.ibdp.favl.exceptions.DigitalMenuProviderServiceException
 
 
+@Test(expected = DigitalMenuProviderServiceException.class)
+    public void testValidateResponseWithCode_422() {
+        Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(422);
+        
+        service.validateResponseWithCode(response);
+        
+        // Verifica que se lanza DigitalMenuProviderServiceException para el código 422
+    }
+
+    // Prueba para el código de estado 401
+    @Test(expected = DigitalMenuProviderServiceException.class)
+    public void testValidateResponseWithCode_401() {
+        Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(401);
+        
+        service.validateResponseWithCode(response);
+        
+        // Verifica que se lanza DigitalMenuProviderServiceException para el código 401
+    }
+
+    // Prueba para el código de estado 403
+    @Test(expected = DigitalMenuProviderServiceException.class)
+    public void testValidateResponseWithCode_403() {
+        Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(403);
+        
+        service.validateResponseWithCode(response);
+        
+        // Verifica que se lanza DigitalMenuProviderServiceException para el código 403
+    }
+
+    // Prueba para el código de estado 404
+    @Test(expected = DigitalMenuProviderServiceException.class)
+    public void testValidateResponseWithCode_404() {
+        Response response = mock(Response.class);
+        when(response.getStatus()).thenReturn(404);
+        
+        service.validateResponseWithCode(response);
+        
+        // Verifica que se lanza DigitalMenuProviderServiceException para el código 404
+    }
+
+    // Prueba para los códigos de estado 502 y 503
+    @Test(expected = DigitalMenuProviderServiceException.class)
+    public void testValidateResponseWithCode_5xx() {
+        Response response502 = mock(Response.class);
+        when(response502.getStatus()).thenReturn(502);
+        
+        service.validateResponseWithCode(response502);
+        
+        // Verifica que se lanza DigitalMenuProviderServiceException para el código 502
+        
+        Response response503 = mock(Response.class);
+        when(response503.getStatus()).thenReturn(503);
+        
+        service.validateResponseWithCode(response503);
+        
+        // Verifica que se lanza DigitalMenuProviderServiceException para el código 503
+    }
