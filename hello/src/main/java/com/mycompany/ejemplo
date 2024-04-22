@@ -53,3 +53,55 @@ private DigitalMenuResponse validateResponseWithCode(final Response response){
         DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
         throw getDefaultDigitalMenuProviderServiceException(digitalMenuErrorResponse, response);
     }
+
+
+
+
+
+
+
+@Test
+    public void testValidateResponseWithCode_Status200() {
+        // Simula una respuesta con código de estado 200
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.getStatus()).thenReturn(Status.OK.getStatusCode());
+
+        // Simula el cuerpo de la respuesta
+        DigitalMenuIBDPResponse mockBody = new DigitalMenuIBDPResponse();
+        when(mockResponse.readEntity(DigitalMenuIBDPResponse.class)).thenReturn(mockBody);
+
+        // Llama al método que se está probando
+        DigitalMenuResponse result = digitalMenuService.validateResponseWithCode(mockResponse);
+
+        // Verifica que se haya llamado al método correcto y se haya obtenido el resultado esperado
+        assertNotNull(result);
+        // Puedes agregar más verificaciones según lo necesites
+    }
+
+    @Test(expected = DigitalMenuProviderServiceException.class)
+    public void testValidateResponseWithCode_Status422() {
+        // Simula una respuesta con código de estado 422
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.getStatus()).thenReturn(Status.UNPROCESSABLE_ENTITY.getStatusCode());
+
+        // Simula el cuerpo de la respuesta
+        DigitalMenuErrorWithParamsResponse mockBody = new DigitalMenuErrorWithParamsResponse();
+        when(mockResponse.readEntity(DigitalMenuErrorWithParamsResponse.class)).thenReturn(mockBody);
+
+        // Llama al método que se está probando y espera una excepción
+        digitalMenuService.validateResponseWithCode(mockResponse);
+    }
+
+    @Test(expected = DigitalMenuProviderServiceException.class)
+    public void testValidateResponseWithCode_Status401() {
+        // Simula una respuesta con código de estado 401
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.getStatus()).thenReturn(Status.UNAUTHORIZED.getStatusCode());
+
+        // Simula el cuerpo de la respuesta
+        DigitalMenuErrorResponse mockBody = new DigitalMenuErrorResponse();
+        when(mockResponse.readEntity(DigitalMenuErrorResponse.class)).thenReturn(mockBody);
+
+        // Llama al método que se está probando y espera una excepción
+        digitalMenuService.validateResponseWithCode(mockResponse);
+    }
