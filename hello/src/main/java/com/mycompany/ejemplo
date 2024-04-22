@@ -1,59 +1,55 @@
-@Test
-    public void getFlighInfo() throws ResiberException {
-        SYSURVEYDISPLAY sysurveydisplay = mock(SYSURVEYDISPLAY.class);
-        when(contractclient.getFlightInfo("123", "20/02/2022","MAD")).thenReturn(sysurveydisplay);
-        SYSURVEYDISPLAY response = repository.getSeatsFlightInfo("123", "20/02/2022","MAD");
-        verify(contractclient,times(1)).getFlightInfo("123", "20/02/2022","MAD");
-        assertThat(response, is(sysurveydisplay));
-    }
+private DigitalMenuResponse validateResponseWithCode(final Response response){
 
-    @Test
-    public void getFlighInfoThrowException() throws ResiberException {
-        when(contractclient.getFlightInfo("123", "20/02/2022","MAD")).thenReturn(null);
-        try{
-            repository.getSeatsFlightInfo("123", "20/02/2022","MAD");
-            fail("Expected exception");
-        } catch (IBBusinessException e){
-            assertThat(e.getErrorCode(), is(ResiberErrorCode.COMUNICATION_ERROR.getErrorCode()));
+        switch(response.getStatus()){
+            case 200:
+                return digitalMenuHandleStatus200(response);
+            case 422:
+                return digitalMenuHandleStatus422(response);
+            case 401:
+                return digitalMenuHandleStatus401(response);
+            case 403:
+                return digitalMenuHandleStatus403(response);
+            case 404:
+                return digitalMenuHandleStatus404(response);
+            case 502:
+            case 503:
+                return digitalMenuHandleStatus50X(response);
+            default:
+                return digitalMenuHandleUnknowStatus(response);
         }
-
     }
 
-    @Test
-    public void getStandByPassengerList() throws ResiberException {
-        STANDBYLIST sysurveydisplay = mock(STANDBYLIST.class);
-        when(contractclient.getStandByPassengerList("123", "20/02/2022","MAD")).thenReturn(sysurveydisplay);
-        STANDBYLIST response = repository.getStandByFlightInfo("123", "20/02/2022","MAD");
-        verify(contractclient,times(1)).getStandByPassengerList("123", "20/02/2022","MAD");
-        assertThat(response, is(sysurveydisplay));
+    private DigitalMenuResponse digitalMenuHandleStatus200(Response response){
+        final DigitalMenuIBDPResponse digitalMenuIBDPResponse = response.readEntity(DigitalMenuIBDPResponse.class);
+        return digitalMenuIBDPResponseIntoDigitalMenuResponseConverter.convert(digitalMenuIBDPResponse);
+    }
+    private DigitalMenuResponse digitalMenuHandleStatus422(Response response){
+        final DigitalMenuErrorWithParamsResponse digitalMenuErrorWithParamsResponse = response
+                .readEntity(DigitalMenuErrorWithParamsResponse.class);
+        throw getDigitalMenuProviderServiceBadRequestException(digitalMenuErrorWithParamsResponse,
+                response.getStatus());
     }
 
-
-
-
-
-@Test
-    public void getFlighInfo() throws ResiberException {
-        sysurveydisplay = mock(SYSURVEYDISPLAY.class);
-        when(contractclient.getFlightInfo("123", "20/02/2022","MAD")).thenReturn(sysurveydisplay);
-        SYSURVEYDISPLAY response = repository.getSeatsFlightInfo("123", "20/02/2022","MAD");
-        verify(contractclient,times(1)).getFlightInfo("123", "20/02/2022","MAD");
-        assertThat(response, is(sysurveydisplay));
+    private DigitalMenuResponse digitalMenuHandleStatus401(Response response){
+        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+        throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
+                DigitalMenuErrorCodes.REQUEST_UNAUTHORIZED_ERROR);
     }
-
-    private void mockito(ResiberContractService service){
-        when(service(("123","20/02/2022","MAD"))).thenReturn(sysurveydisplay);
+    private DigitalMenuResponse digitalMenuHandleStatus403(Response response){
+        DigitalMenuErrorResponse digitalMenuErrorResponse = response.readEntity(DigitalMenuErrorResponse.class);
+        throw new DigitalMenuProviderServiceException(DigitalMenuErrorCodes.AUTHENTICATION_ERROR,
+                digitalMenuErrorResponse.getDetail(), response.getStatus());
     }
-
-
-
-
-
-
-
-
-
-mockitoBadRequest(service.getScheduledFlightsByRoute(request));
-private void mockitoBadRequest(FlightStatusResponse service) {
-        when(service).thenThrow(mock(BadRequestException.class));
+    private DigitalMenuResponse digitalMenuHandleStatus404(Response response){
+        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+        throw getDigitalMenuProviderServiceException(digitalMenuErrorResponse, response.getStatus(),
+                DigitalMenuErrorCodes.FLIGHT_NOT_FOUND);
+    }
+    private DigitalMenuResponse digitalMenuHandleStatus50X(Response response){
+        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+        throw throwExceptionErrorResponse(digitalMenuErrorResponse, response.getStatus());
+    }
+    private DigitalMenuResponse digitalMenuHandleUnknowStatus(Response response){
+        DigitalMenuErrorResponse digitalMenuErrorResponse = readDigitalMenuErrorResponse(response);
+        throw getDefaultDigitalMenuProviderServiceException(digitalMenuErrorResponse, response);
     }
